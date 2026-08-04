@@ -1,6 +1,7 @@
 import aiosqlite
 
-from app.models.schemas import EdgeCreate, NodeCreate
+from app.models.edges import EdgeCreate
+from app.models.nodes import NodeCreate
 from app.services.edges import create_edge, list_edges_for_node, traverse_graph
 from app.services.nodes import create_node, get_node, search_index
 

@@ -1,40 +1,43 @@
 import json
-import uuid
-from datetime import UTC, datetime
 
 import aiosqlite
 
-from app.models.schemas import NodeCreate, NodeOut, NodeSearchResult
+from app.core.identifiers import new_id, utcnow_iso
+from app.core.queries import fetch_all, fetch_one, row_to_dict
+from app.models.nodes import NodeCreate, NodeOut, NodeSearchResult
 from app.services import tags as tags_service
 from app.services import types as types_service
 
+_INSERT = """
+INSERT INTO nodes
+    (id, type, title, summary, content, thumbnail_url, metadata,
+     created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+_BY_ID = "SELECT * FROM nodes WHERE id = ?"
+_SEARCH = """
+SELECT nodes.id, nodes.type, nodes.title, nodes.summary
+FROM nodes_fts
+JOIN nodes ON nodes.id = nodes_fts.id
+WHERE nodes_fts MATCH ?
+ORDER BY rank
+LIMIT ?
+"""
 
-def _row_to_node(row: aiosqlite.Row, tags: list[str]) -> NodeOut:
-    return NodeOut(
-        id=row["id"],
-        type=row["type"],
-        title=row["title"],
-        summary=row["summary"],
-        content=row["content"],
-        thumbnail_url=row["thumbnail_url"],
-        metadata=json.loads(row["metadata"]),
-        tags=tags,
-        created_at=row["created_at"],
-        updated_at=row["updated_at"],
-    )
+
+def _to_node(row: aiosqlite.Row, tags: list[str]) -> NodeOut:
+    data = row_to_dict(row)
+    data["metadata"] = json.loads(data["metadata"])
+    data["tags"] = tags
+    return NodeOut.model_validate(data)
 
 
 async def create_node(conn: aiosqlite.Connection, data: NodeCreate) -> NodeOut:
-    node_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    node_id = new_id()
+    now = utcnow_iso()
     await types_service.ensure_type(conn, data.type)
     await conn.execute(
-        """
-        INSERT INTO nodes
-            (id, type, title, summary, content, thumbnail_url, metadata,
-             created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+        _INSERT,
         (
             node_id,
             data.type,
@@ -50,37 +53,21 @@ async def create_node(conn: aiosqlite.Connection, data: NodeCreate) -> NodeOut:
     if data.tags:
         await tags_service.set_tags(conn, node_id, data.tags)
     await conn.commit()
+
     node = await get_node(conn, node_id)
     assert node is not None
     return node
 
 
 async def get_node(conn: aiosqlite.Connection, node_id: str) -> NodeOut | None:
-    async with conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)) as cursor:
-        row = await cursor.fetchone()
+    row = await fetch_one(conn, _BY_ID, (node_id,))
     if row is None:
         return None
-    return _row_to_node(row, await tags_service.get_tags(conn, node_id))
+    return _to_node(row, await tags_service.get_tags(conn, node_id))
 
 
 async def search_index(
     conn: aiosqlite.Connection, query: str, limit: int = 5
 ) -> list[NodeSearchResult]:
-    async with conn.execute(
-        """
-        SELECT nodes.id, nodes.type, nodes.title, nodes.summary
-        FROM nodes_fts
-        JOIN nodes ON nodes.id = nodes_fts.id
-        WHERE nodes_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-        """,
-        (query, limit),
-    ) as cursor:
-        rows = await cursor.fetchall()
-    return [
-        NodeSearchResult(
-            id=r["id"], type=r["type"], title=r["title"], summary=r["summary"]
-        )
-        for r in rows
-    ]
+    rows = await fetch_all(conn, _SEARCH, (query, limit))
+    return [NodeSearchResult.model_validate(row_to_dict(row)) for row in rows]

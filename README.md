@@ -70,11 +70,16 @@ weighted **edges** (`depends_on`, `relates_to`, `blocks`, `part_of`).
 
 Nodes are organized two ways:
 
-- **Class** (`person`, `project`, `idea`, `event`, `fact`, `plan`, `issue`, …) —
-  exactly one per node, carrying the color the canvas draws it with. The set
-  lives in a table rather than a fixed enum, so agents can register new classes
-  as they need them.
+- **Class** — exactly one per node, describing the coarse shape of the thing.
+  Ships with entities (`person`, `organization`, `place`, `object`), work
+  (`project`, `plan`, `issue`, `event`), and knowledge (`idea`, `fact`,
+  `decision`, `preference`, `resource`). The set lives in a table rather than a
+  fixed enum, so agents register new classes as they need them — no migration.
 - **Tags** — any number per node, created freely and indexed for filtering.
+
+The split is deliberate: a class is the shape, tags are the specifics. A pet is
+an `object` tagged `animal`, not a class of its own — unless you track enough of
+them to want one, which costs nothing.
 
 Names are normalized on write, so `Task`, `task`, and `TASK` resolve to a single
 class instead of three.
@@ -105,10 +110,3 @@ npm run lint && npm run build
 
 CI runs the same checks and builds both images on every push and pull request
 to `main` and `develop`.
-
-## Status
-
-- **Storage engine and graph services** — implemented and tested.
-- **MCP tools** — implemented; live WebSocket broadcast on write is pending.
-- **Canvas** — shell and design system in place; the force-graph view, hover
-  cards, and Markdown drawer are next.

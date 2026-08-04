@@ -2,7 +2,7 @@ import aiosqlite
 import pytest
 
 from app.core.slug import slugify
-from app.models.schemas import NodeCreate
+from app.models.nodes import NodeCreate
 from app.services.nodes import create_node, get_node
 from app.services.tags import find_nodes_by_tag, list_tags, set_tags
 from app.services.types import list_types
@@ -21,8 +21,8 @@ def test_slugify_rejects_empty() -> None:
 
 
 async def test_default_types_are_seeded(conn: aiosqlite.Connection) -> None:
-    names = {t.name for t in await list_types(conn)}
-    assert {"person", "project", "idea", "event", "fact", "plan", "issue"} <= names
+    names = set(await list_types(conn))
+    assert {"person", "project", "idea", "fact", "object", "place"} <= names
 
 
 async def test_unknown_type_is_auto_registered(conn: aiosqlite.Connection) -> None:
@@ -30,7 +30,7 @@ async def test_unknown_type_is_auto_registered(conn: aiosqlite.Connection) -> No
         conn, NodeCreate(type="Retrospective", title="R", summary="s")
     )
     assert node.type == "retrospective"
-    assert "retrospective" in {t.name for t in await list_types(conn)}
+    assert "retrospective" in await list_types(conn)
 
 
 async def test_type_variants_collapse_to_one_class(conn: aiosqlite.Connection) -> None:
@@ -69,7 +69,7 @@ async def test_list_tags_reports_usage_counts(conn: aiosqlite.Connection) -> Non
         conn, NodeCreate(type="idea", title="B", summary="s", tags=["shared"])
     )
 
-    counts = {t["name"]: t["count"] for t in await list_tags(conn)}
+    counts = {tag.name: tag.count for tag in await list_tags(conn)}
     assert counts["shared"] == 2
     assert counts["solo"] == 1
 

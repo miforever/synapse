@@ -9,8 +9,6 @@ _NOW = "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
 TABLES = f"""
 CREATE TABLE IF NOT EXISTS node_types (
     name TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    color TEXT NOT NULL DEFAULT '#94A3B8',
     created_at TEXT NOT NULL DEFAULT {_NOW}
 );
 
@@ -90,13 +88,28 @@ PRAGMAS = (
     "PRAGMA foreign_keys=ON",
 )
 
-# Seeded on boot; agents may register further types at runtime.
-DEFAULT_NODE_TYPES: tuple[tuple[str, str, str], ...] = (
-    ("person", "Person", "#00FF66"),
-    ("project", "Project", "#00F0FF"),
-    ("idea", "Idea", "#FFB800"),
-    ("event", "Event", "#A855F7"),
-    ("fact", "Fact", "#94A3B8"),
-    ("plan", "Plan", "#38BDF8"),
-    ("issue", "Issue", "#FB7185"),
+# Seeded on boot; agents may register further classes at runtime. How each is
+# rendered (colour, icon, label casing) is entirely the canvas's concern.
+#
+# Deliberately coarse. A class is the *shape* of a thing and carries one colour
+# on the canvas; anything more specific belongs in tags. A pet is an `object`
+# tagged `animal`, not its own class — unless a given user tracks enough of
+# them to justify registering one, which they can do without a migration.
+DEFAULT_NODE_TYPES: tuple[str, ...] = (
+    # Entities
+    "person",
+    "organization",
+    "place",
+    "object",
+    # Work
+    "project",
+    "plan",
+    "issue",
+    "event",
+    # Knowledge
+    "idea",
+    "fact",
+    "decision",
+    "preference",
+    "resource",
 )
