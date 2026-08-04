@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+**/node_modules
+**/.next
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/.git
+**/.DS_Store

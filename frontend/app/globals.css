@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --font-display and --font-mono are injected by next/font in layout.tsx.
+   Deliberately no system-ui fallback chain here: a silent fallback to the
+   platform UI font is the exact "slop" look the design rules rule out. */
+
+body {
+  background-color: #08090c;
+  color: #f8fafc;
+}
+
+.glass-panel {
+  @apply backdrop-blur-xl bg-black/40 border border-white/10;
+}
