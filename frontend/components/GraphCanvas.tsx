@@ -11,7 +11,8 @@ import {
   type PositionedNode,
 } from "@/lib/force-graph";
 import { colorForClass } from "@/lib/node-classes";
-import type { GraphEdge, GraphNode } from "@/lib/types";
+import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
+import { getCircularThumbnail } from "@/lib/image-cache";
 import { buildNodeObject, disposeSpriteCache } from "./node-sprite";
 
 /**
@@ -35,6 +36,8 @@ interface ForceGraphProps {
   linkDirectionalParticleSpeed?: number;
   onNodeHover?: (node: GraphNode | null) => void;
   onNodeClick?: (node: GraphNode) => void;
+  nodeVisibility?: (node: GraphNode) => boolean;
+  linkVisibility?: (link: GraphEdge) => boolean;
   // 3D only
   nodeThreeObject?: (node: GraphNode) => Object3D;
   nodeOpacity?: number;
@@ -67,6 +70,9 @@ interface Props {
   width: number;
   height: number;
   dimmed: boolean;
+  showThumbnails: boolean;
+  /** null means no filter is active; otherwise only these ids render. */
+  visibleIds: Set<string> | null;
   onHover: (node: GraphNode | null) => void;
   onSelect: (node: GraphNode) => void;
   graphRef: React.RefObject<ForceGraphHandle | null>;
@@ -87,6 +93,8 @@ function GraphCanvasImpl({
   width,
   height,
   dimmed,
+  showThumbnails,
+  visibleIds,
   onHover,
   onSelect,
   graphRef,
@@ -108,8 +116,8 @@ function GraphCanvasImpl({
   );
 
   const nodeThreeObject = useCallback(
-    (node: GraphNode): Object3D => buildNodeObject(node),
-    [],
+    (node: GraphNode): Object3D => buildNodeObject(node, showThumbnails),
+    [showThumbnails],
   );
 
   // 2D nodes are drawn by hand: a filled dot, a ring, and a label that fades
@@ -122,16 +130,34 @@ function GraphCanvasImpl({
     ) => {
       const { x = 0, y = 0 } = node;
       const radius = 5;
+      const color = colorForClass(node.type);
 
       ctx.globalAlpha = dimmed ? 0.25 : 1;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = colorForClass(node.type);
-      ctx.fill();
 
-      ctx.lineWidth = 1 / globalScale;
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.stroke();
+      const thumbnail =
+        showThumbnails && node.thumbnail_url
+          ? getCircularThumbnail(node.thumbnail_url, color, 128)
+          : null;
+
+      if (thumbnail) {
+        // Already circular with its ring baked in — just place it.
+        ctx.drawImage(
+          thumbnail,
+          x - radius,
+          y - radius,
+          radius * 2,
+          radius * 2,
+        );
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.lineWidth = 1 / globalScale;
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.stroke();
+      }
 
       if (globalScale > 1.2) {
         ctx.globalAlpha = dimmed ? 0.2 : Math.min(1, (globalScale - 1.2) * 2);
@@ -144,7 +170,22 @@ function GraphCanvasImpl({
 
       ctx.globalAlpha = 1;
     },
-    [dimmed],
+    [dimmed, showThumbnails],
+  );
+
+  // Filtering hides rather than removes: the simulation keeps running over
+  // the full graph, so positions hold and clearing a filter is instant.
+  const nodeVisibility = useCallback(
+    (node: GraphNode) => !visibleIds || visibleIds.has(node.id),
+    [visibleIds],
+  );
+
+  const linkVisibility = useCallback(
+    (link: GraphEdge) =>
+      !visibleIds ||
+      (visibleIds.has(endpointId(link.source)) &&
+        visibleIds.has(endpointId(link.target))),
+    [visibleIds],
   );
 
   useEffect(() => disposeSpriteCache, []);
@@ -165,8 +206,20 @@ function GraphCanvasImpl({
       linkDirectionalParticleSpeed: 0.006,
       onNodeHover: onHover,
       onNodeClick: onSelect,
+      nodeVisibility,
+      linkVisibility,
     }),
-    [data, width, height, linkWidth, linkParticles, onHover, onSelect],
+    [
+      data,
+      width,
+      height,
+      linkWidth,
+      linkParticles,
+      onHover,
+      onSelect,
+      nodeVisibility,
+      linkVisibility,
+    ],
   );
 
   if (mode === "3d") {

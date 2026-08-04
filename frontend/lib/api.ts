@@ -1,4 +1,4 @@
-import type { GraphSnapshot, NodeDetail } from "./types";
+import type { GraphSnapshot, NodeDetail, NodeSearchResult } from "./types";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -22,4 +22,14 @@ export function fetchNode(
   signal?: AbortSignal,
 ): Promise<NodeDetail> {
   return get<NodeDetail>(`/nodes/${encodeURIComponent(id)}`, signal);
+}
+
+export function searchNodes(
+  query: string,
+  signal?: AbortSignal,
+): Promise<NodeSearchResult[]> {
+  return get<NodeSearchResult[]>(
+    `/search?q=${encodeURIComponent(query)}&limit=20`,
+    signal,
+  );
 }

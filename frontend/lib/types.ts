@@ -32,6 +32,14 @@ export interface NodeDetail extends GraphNode {
   updated_at: string;
 }
 
+/** Lightweight search hit — no Markdown body. */
+export interface NodeSearchResult {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+}
+
 /** Mirrors app/models/settings.py — the user's rendering preferences. */
 export interface MediaSettings {
   images: boolean;
@@ -45,10 +53,18 @@ export interface AppSettings {
 }
 
 export const EVENT_NEW_NODE = "EVENT_NEW_NODE";
+export const EVENT_NODE_UPDATED = "EVENT_NODE_UPDATED";
+export const EVENT_NODE_DELETED = "EVENT_NODE_DELETED";
 
-export interface NewNodeEvent {
-  event: typeof EVENT_NEW_NODE;
-  payload: { node: GraphNode; edges: GraphEdge[] };
+export type GraphEvent =
+  | { event: typeof EVENT_NEW_NODE; payload: { node: GraphNode; edges: GraphEdge[] } }
+  | { event: typeof EVENT_NODE_UPDATED; payload: { node: GraphNode } }
+  | { event: typeof EVENT_NODE_DELETED; payload: { node_id: string } };
+
+export interface GraphEventHandlers {
+  onNewNode: (node: GraphNode, edges: GraphEdge[]) => void;
+  onNodeUpdated: (node: GraphNode) => void;
+  onNodeDeleted: (nodeId: string) => void;
 }
 
 /**

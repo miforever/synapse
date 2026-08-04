@@ -16,6 +16,22 @@ class NodeCreate(BaseModel):
     tags: list[TagName] = Field(default_factory=list)
 
 
+class NodeUpdate(BaseModel):
+    """Partial update. Omitted fields keep their stored value.
+
+    `tags` is replace-not-merge: passing [] clears them, omitting it leaves
+    them alone. Without that distinction there is no way to remove a tag.
+    """
+
+    type: NodeType | None = None
+    title: Title | None = None
+    summary: Summary | None = None
+    content: str | None = None
+    thumbnail_url: str | None = None
+    metadata: dict[str, Any] | None = None
+    tags: list[TagName] | None = None
+
+
 class NodeOut(BaseModel):
     id: str
     type: str

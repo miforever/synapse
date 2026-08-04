@@ -112,6 +112,9 @@ them to want one, which costs nothing.
 Names are normalized on write, so `Task`, `task`, and `TASK` resolve to a single
 class instead of three.
 
+Memories are editable and removable — a store you cannot correct just
+accumulates confidently stated mistakes.
+
 ## Agent tools
 
 Exposed over MCP:
@@ -122,6 +125,9 @@ Exposed over MCP:
 | `read_node(node_id)`              | Full content and immediate connections          |
 | `traverse_graph(node_id, depth)`  | Local structural map N hops out                 |
 | `add_memory(...)`                 | Persist a node, its tags, and optional edges    |
+| `update_memory(...)`              | Correct a memory; omitted fields stay untouched |
+| `delete_memory(node_id)`          | Remove a memory and every edge touching it      |
+| `link_memories(...)` / `unlink_memories(...)` | Connect or disconnect two memories  |
 | `list_types()` / `list_tags()`    | Existing vocabulary, so agents reuse over invent |
 
 ## Development

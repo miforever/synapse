@@ -1,10 +1,14 @@
 /**
  * Builds the Three.js object drawn for each 3D node.
  *
- * Materials and textures are cached per class rather than per node. A graph
- * with a thousand memories across a dozen classes then allocates a dozen
- * materials instead of a thousand, which is the difference between a smooth
- * canvas and a stuttering one.
+ * Class materials and textures are cached per class rather than per node. A
+ * graph with a thousand memories across a dozen classes then allocates a
+ * dozen materials instead of a thousand, which is the difference between a
+ * smooth canvas and a stuttering one.
+ *
+ * Thumbnails load asynchronously. A node renders as its class disc
+ * immediately and swaps its texture in place once the image decodes — no
+ * React state, so a late image never re-renders or re-heats the graph.
  */
 
 import {
@@ -16,17 +20,20 @@ import {
 } from "three";
 import SpriteText from "three-spritetext";
 
+import { getCircularThumbnail } from "@/lib/image-cache";
 import { colorForClass } from "@/lib/node-classes";
 import type { GraphNode } from "@/lib/types";
 
-const materials = new Map<string, SpriteMaterial>();
-const textures = new Map<string, CanvasTexture>();
+const classMaterials = new Map<string, SpriteMaterial>();
+const classTextures = new Map<string, CanvasTexture>();
+const thumbnailMaterials = new Map<string, SpriteMaterial>();
 
 const DISC_SIZE = 128;
+const THUMB_SIZE = 128;
 
 /** A soft radial disc, tinted per class — nodes read as glowing points. */
 function discTexture(color: string): CanvasTexture {
-  const cached = textures.get(color);
+  const cached = classTextures.get(color);
   if (cached) return cached;
 
   const canvas = document.createElement("canvas");
@@ -46,12 +53,12 @@ function discTexture(color: string): CanvasTexture {
   }
 
   const texture = new CanvasTexture(canvas);
-  textures.set(color, texture);
+  classTextures.set(color, texture);
   return texture;
 }
 
-function materialFor(type: string): SpriteMaterial {
-  const cached = materials.get(type);
+function classMaterial(type: string): SpriteMaterial {
+  const cached = classMaterials.get(type);
   if (cached) return cached;
 
   const material = new SpriteMaterial({
@@ -59,18 +66,54 @@ function materialFor(type: string): SpriteMaterial {
     transparent: true,
     depthWrite: false,
   });
-  materials.set(type, material);
+  classMaterials.set(type, material);
   return material;
 }
 
-export function buildNodeObject(node: GraphNode): Object3D {
+/** Shared per URL+class, so repeated thumbnails cost one texture. */
+function thumbnailMaterial(url: string, type: string): SpriteMaterial | null {
+  const key = `${url}@${type}`;
+  const cached = thumbnailMaterials.get(key);
+  if (cached) return cached;
+
+  const canvas = getCircularThumbnail(url, colorForClass(type), THUMB_SIZE);
+  if (!canvas) return null;
+
+  const material = new SpriteMaterial({
+    map: new CanvasTexture(canvas),
+    transparent: true,
+    depthWrite: false,
+  });
+  thumbnailMaterials.set(key, material);
+  return material;
+}
+
+export function buildNodeObject(
+  node: GraphNode,
+  showThumbnails: boolean,
+): Object3D {
   const group = new Group();
 
-  const sprite = new Sprite(materialFor(node.type));
+  const sprite = new Sprite(classMaterial(node.type));
   sprite.scale.set(10, 10, 1);
   group.add(sprite);
 
-  // Labels scale with camera distance for free via SpriteText.
+  if (showThumbnails && node.thumbnail_url) {
+    const url = node.thumbnail_url;
+
+    const applyThumbnail = () => {
+      const material = thumbnailMaterial(url, node.type);
+      if (material) sprite.material = material;
+    };
+
+    // Ready already? Swap now. Otherwise swap when the image decodes —
+    // mutating the sprite directly keeps this off React's path entirely.
+    getCircularThumbnail(url, colorForClass(node.type), THUMB_SIZE, () =>
+      applyThumbnail(),
+    );
+    applyThumbnail();
+  }
+
   const label = new SpriteText(node.title);
   label.color = "#E2E8F0";
   label.textHeight = 3;
@@ -82,8 +125,13 @@ export function buildNodeObject(node: GraphNode): Object3D {
 
 /** Frees GPU resources when the canvas unmounts. */
 export function disposeSpriteCache(): void {
-  materials.forEach((material) => material.dispose());
-  textures.forEach((texture) => texture.dispose());
-  materials.clear();
-  textures.clear();
+  classMaterials.forEach((material) => material.dispose());
+  classTextures.forEach((texture) => texture.dispose());
+  thumbnailMaterials.forEach((material) => {
+    material.map?.dispose();
+    material.dispose();
+  });
+  classMaterials.clear();
+  classTextures.clear();
+  thumbnailMaterials.clear();
 }

@@ -43,6 +43,12 @@ async def list_edges_for_node(
     return [_to_edge(row) for row in rows]
 
 
+async def delete_edge(conn: aiosqlite.Connection, edge_id: str) -> bool:
+    cursor = await conn.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
+    await conn.commit()
+    return cursor.rowcount > 0
+
+
 async def traverse_graph(
     conn: aiosqlite.Connection, node_id: str, depth: int = 1
 ) -> dict[str, list[str]]:

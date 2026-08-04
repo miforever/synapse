@@ -3,22 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 
 import { WS_URL } from "@/lib/api";
-import { EVENT_NEW_NODE, type NewNodeEvent } from "@/lib/types";
-
-type NewNodeHandler = (payload: NewNodeEvent["payload"]) => void;
+import {
+  EVENT_NEW_NODE,
+  EVENT_NODE_DELETED,
+  EVENT_NODE_UPDATED,
+  type GraphEvent,
+  type GraphEventHandlers,
+} from "@/lib/types";
 
 const RETRY_DELAY_MS = 2000;
 
 /**
  * Subscribes to live graph mutations.
  *
- * The handler is held in a ref so the socket is opened exactly once and
- * survives every parent re-render — resubscribing on each render would tear
- * down and rebuild the connection continuously.
+ * Handlers are held in a ref so the socket opens exactly once and survives
+ * every parent re-render — resubscribing each render would tear the
+ * connection down and rebuild it continuously.
  */
-export function useGraphStream(onNewNode: NewNodeHandler): boolean {
-  const handler = useRef(onNewNode);
-  handler.current = onNewNode;
+export function useGraphStream(handlers: GraphEventHandlers): boolean {
+  const latest = useRef(handlers);
+  latest.current = handlers;
 
   const [connected, setConnected] = useState(false);
 
@@ -34,9 +38,20 @@ export function useGraphStream(onNewNode: NewNodeHandler): boolean {
 
       socket.onmessage = (event: MessageEvent<string>) => {
         try {
-          const message = JSON.parse(event.data) as NewNodeEvent;
-          if (message.event === EVENT_NEW_NODE) {
-            handler.current(message.payload);
+          const message = JSON.parse(event.data) as GraphEvent;
+          switch (message.event) {
+            case EVENT_NEW_NODE:
+              latest.current.onNewNode(
+                message.payload.node,
+                message.payload.edges,
+              );
+              break;
+            case EVENT_NODE_UPDATED:
+              latest.current.onNodeUpdated(message.payload.node);
+              break;
+            case EVENT_NODE_DELETED:
+              latest.current.onNodeDeleted(message.payload.node_id);
+              break;
           }
         } catch {
           // A malformed frame must never take the canvas down.
