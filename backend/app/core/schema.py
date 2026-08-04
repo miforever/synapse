@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS tags (
     created_at TEXT NOT NULL DEFAULT {_NOW}
 );
 
+-- Single-row key/value store for user preferences.
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT {_NOW}
+);
+
 CREATE TABLE IF NOT EXISTS node_tags (
     node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
     tag TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE,

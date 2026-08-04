@@ -10,6 +10,7 @@ from app.models.edges import EdgeCreate
 from app.models.nodes import NodeCreate
 from app.services import edges as edges_service
 from app.services import nodes as nodes_service
+from app.ws.events import broadcast_new_node
 
 
 @mcp.tool
@@ -73,7 +74,7 @@ async def add_memory(
         for target_id in linked_to or []
     ]
 
-    # TODO(phase-2): broadcast EVENT_NEW_NODE over /ws/graph.
+    await broadcast_new_node(node, created)
     return {
         "node": node.model_dump(),
         "edges": [edge.model_dump() for edge in created],

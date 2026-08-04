@@ -62,6 +62,34 @@ cd frontend && npm install && npm run dev
 Under Docker the database persists in the `synapse-data` volume; natively it
 lands at `backend/synapse.db`. Override with `SYNAPSE_DB_PATH`.
 
+## Connect an agent
+
+With the daemon running, point any MCP client at `http://localhost:8000/mcp`.
+
+**Claude Code** — one command:
+
+```bash
+claude mcp add --transport http synapse http://localhost:8000/mcp
+```
+
+Or commit it to the project by writing `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+**Cursor** — add the same block to `~/.cursor/mcp.json`.
+
+Then ask the agent to remember something. The node appears on the canvas as it
+is written, with no refresh.
+
 ## Memory model
 
 Each memory is a **node** — a title, a short summary for cheap index reads, a
@@ -110,3 +138,17 @@ npm run lint && npm run build
 
 CI runs the same checks and builds both images on every push and pull request
 to `main` and `develop`.
+
+## Privacy
+
+Everything stays on your machine — one SQLite file, no telemetry, no accounts.
+
+Memory content is written by agents, so the canvas will not load media from it
+until you say so. Images render by default; audio and video are click-to-load,
+and remote sources are blocked entirely until enabled. Those switches live in
+the control bar and persist in the daemon. Agents can read them (so they know
+what is worth attaching) but cannot change them.
+
+## License
+
+[MIT](LICENSE).
