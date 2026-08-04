@@ -22,7 +22,8 @@ export interface Coords {
 
 export interface ForceGraphHandle {
   graphData: (data?: GraphData) => GraphData;
-  d3ReheatSimulation: () => void;
+  d3ReheatSimulation?: () => void;
+  d3Force?: (name: string, force: unknown) => void;
   zoomToFit: (durationMs?: number, padding?: number) => void;
   /** 3D only. */
   cameraPosition?: (
@@ -35,7 +36,15 @@ export interface ForceGraphHandle {
   zoom?: (scale?: number, durationMs?: number) => void;
 }
 
-/** Positions the simulation writes onto each node as it settles. */
-export type PositionedNode = GraphNode & Partial<Coords>;
+/**
+ * Positions the simulation writes onto each node as it settles, plus the
+ * `f*` pins that hold a node in place once it has been dragged.
+ */
+export type PositionedNode = GraphNode &
+  Partial<Coords> & {
+    fx?: number;
+    fy?: number;
+    fz?: number;
+  };
 
 export const CANVAS_BACKGROUND = PALETTE.canvas;

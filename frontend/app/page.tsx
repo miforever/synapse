@@ -11,6 +11,7 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { useElementSize } from "@/hooks/useElementSize";
 import { useGraph } from "@/hooks/useGraph";
 import { useGraphStream } from "@/hooks/useGraphStream";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useSettings } from "@/hooks/useSettings";
 import type { ForceGraphHandle, GraphData } from "@/lib/force-graph";
 import type { GraphEdge, GraphNode } from "@/lib/types";
@@ -32,6 +33,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [activeClasses, setActiveClasses] = useState<Set<string>>(new Set());
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
+  const [motionOn, setMotionOn] = useState(true);
 
   /**
    * The renderer owns this object and mutates it as the simulation runs. It is
@@ -190,6 +192,9 @@ export default function Home() {
     [],
   );
 
+  const reducedMotion = useReducedMotion();
+  const motion = motionOn && !reducedMotion;
+
   // Thumbnail URLs come from agent-authored memories, so they sit behind the
   // same trust gate as media inside the content.
   const showThumbnails =
@@ -222,6 +227,7 @@ export default function Home() {
           dimmed={selected !== null}
           showThumbnails={showThumbnails}
           visibleIds={visibleIds}
+          motion={motion}
           onHover={setHovered}
           onSelect={handleSelect}
         />
@@ -247,6 +253,8 @@ export default function Home() {
         nodeCount={nodeCount}
         media={settings.media}
         onMediaChange={updateMedia}
+        motion={motion}
+        onMotionChange={setMotionOn}
       />
 
       <HoverCard

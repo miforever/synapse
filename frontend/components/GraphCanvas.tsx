@@ -13,6 +13,7 @@ import {
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
+import { createDriftForce } from "@/lib/drift-force";
 import { buildNodeObject, disposeSpriteCache } from "./node-sprite";
 
 /**
@@ -38,6 +39,11 @@ interface ForceGraphProps {
   onNodeClick?: (node: GraphNode) => void;
   nodeVisibility?: (node: GraphNode) => boolean;
   linkVisibility?: (link: GraphEdge) => boolean;
+  enableNodeDrag?: boolean;
+  onNodeDragEnd?: (node: PositionedNode) => void;
+  d3VelocityDecay?: number;
+  d3AlphaMin?: number;
+  onEngineTick?: () => void;
   // 3D only
   nodeThreeObject?: (node: GraphNode) => Object3D;
   nodeOpacity?: number;
@@ -73,6 +79,8 @@ interface Props {
   showThumbnails: boolean;
   /** null means no filter is active; otherwise only these ids render. */
   visibleIds: Set<string> | null;
+  /** Ambient drift; off honours prefers-reduced-motion. */
+  motion: boolean;
   onHover: (node: GraphNode | null) => void;
   onSelect: (node: GraphNode) => void;
   graphRef: React.RefObject<ForceGraphHandle | null>;
@@ -95,6 +103,7 @@ function GraphCanvasImpl({
   dimmed,
   showThumbnails,
   visibleIds,
+  motion,
   onHover,
   onSelect,
   graphRef,
@@ -188,6 +197,28 @@ function GraphCanvasImpl({
     [visibleIds],
   );
 
+  // Dragging a node pins it. Arranging the graph by hand is only useful if
+  // the layout you make survives the next tick.
+  const handleDragEnd = useCallback((node: PositionedNode) => {
+    node.fx = node.x;
+    node.fy = node.y;
+    node.fz = node.z;
+  }, []);
+
+  // Registered imperatively because the force has to attach to the live
+  // simulation, and re-registering on every render would reset its phases.
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph?.d3Force) return;
+
+    graph.d3Force(
+      "drift",
+      motion ? createDriftForce({ dimensions: mode === "3d" ? 3 : 2 }) : null,
+    );
+    // Nudge the engine so the change takes effect on an already-settled graph.
+    graph.d3ReheatSimulation?.();
+  }, [motion, graphRef, mode]);
+
   useEffect(() => disposeSpriteCache, []);
 
   const shared = useMemo<ForceGraphProps>(
@@ -198,7 +229,14 @@ function GraphCanvasImpl({
       backgroundColor: CANVAS_BACKGROUND,
       nodeId: "id",
       nodeLabel: "",
-      cooldownTicks: 120,
+      // Never auto-stop: the drift force has to keep receiving ticks. Layout
+      // forces still fade via alpha decay, so this settles then just breathes.
+      cooldownTicks: Infinity,
+      d3AlphaMin: 0,
+      // Heavy damping turns the drift impulses into a slow float instead of
+      // letting them accumulate into visible speed.
+      d3VelocityDecay: 0.82,
+      enableNodeDrag: true,
       linkColor: () => LINK_COLOR,
       linkWidth,
       linkDirectionalParticles: linkParticles,
@@ -208,6 +246,7 @@ function GraphCanvasImpl({
       onNodeClick: onSelect,
       nodeVisibility,
       linkVisibility,
+      onNodeDragEnd: handleDragEnd,
     }),
     [
       data,
@@ -219,6 +258,7 @@ function GraphCanvasImpl({
       onSelect,
       nodeVisibility,
       linkVisibility,
+      handleDragEnd,
     ],
   );
 

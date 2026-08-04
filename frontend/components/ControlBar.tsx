@@ -10,6 +10,8 @@ interface Props {
   nodeCount: number;
   media: MediaSettings;
   onMediaChange: (media: Partial<MediaSettings>) => void;
+  motion: boolean;
+  onMotionChange: (motion: boolean) => void;
 }
 
 const MEDIA_SWITCHES: { key: keyof MediaSettings; label: string }[] = [
@@ -26,6 +28,8 @@ export function ControlBar({
   nodeCount,
   media,
   onMediaChange,
+  motion,
+  onMotionChange,
 }: Props) {
   return (
     <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-4 rounded-xl px-4 py-2.5">
@@ -65,6 +69,21 @@ export function ControlBar({
           </button>
         ))}
       </div>
+
+      <div className="h-4 w-px bg-white/10" />
+
+      <button
+        type="button"
+        onClick={() => onMotionChange(!motion)}
+        title="Ambient node drift"
+        className={`rounded-md px-2 py-1 font-mono text-[10px] transition ${
+          motion
+            ? "bg-violet/15 text-violet"
+            : "text-slate-600 hover:text-slate-400"
+        }`}
+      >
+        drift
+      </button>
 
       <div className="h-4 w-px bg-white/10" />
 
