@@ -1,7 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ComponentType, memo, useCallback, useEffect, useMemo } from "react";
+import {
+  type ComponentType,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import type { Object3D } from "three";
 
 import {
@@ -10,10 +17,12 @@ import {
   type GraphData,
   type PositionedNode,
 } from "@/lib/force-graph";
+import { glowCanvas } from "@/lib/glow";
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
 import { createDriftForce } from "@/lib/drift-force";
+import { createLivingLinksForce } from "@/lib/living-links";
 import { applyFocus, buildNodeObject, disposeSpriteCache } from "./node-sprite";
 
 /**
@@ -124,6 +133,24 @@ interface Props {
   graphRef: React.RefObject<ForceGraphHandle | null>;
 }
 
+const LABEL_MAX_CHARS = 24;
+const MAX_LABEL_PX = 12;
+
+/**
+ * Canvas cannot resolve CSS custom properties, so `var(--font-mono)` makes the
+ * whole font declaration invalid and the context silently keeps its previous
+ * value — the default 10px sans-serif, interpreted in world units, which
+ * renders labels several times their intended size. Family names must be
+ * literal here.
+ */
+const LABEL_FONT = '"JetBrains Mono", ui-monospace, monospace';
+
+function truncateLabel(title: string): string {
+  return title.length > LABEL_MAX_CHARS
+    ? `${title.slice(0, LABEL_MAX_CHARS - 1)}…`
+    : title;
+}
+
 const LINK_COLOR = "rgba(148, 163, 184, 0.28)";
 
 /**
@@ -201,14 +228,31 @@ function GraphCanvasImpl({
           radius * 2,
         );
       } else {
+        // The same radial glow the 3D sprites use, so a node reads as lit
+        // rather than as a flat vector circle.
+        const glow = glowCanvas(color);
+        if (glow) {
+          const bloom = radius * 3.4;
+          ctx.drawImage(glow, x - bloom, y - bloom, bloom * 2, bloom * 2);
+        }
+
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 0.62, 0, 2 * Math.PI);
+        ctx.fillStyle = "#F8FAFC";
+        ctx.fill();
+
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, 2 * Math.PI);
         ctx.fillStyle = color;
+        ctx.globalAlpha *= 0.55;
         ctx.fill();
+        ctx.globalAlpha = !focusing ? 1 : isFocus ? 1 : highlighted ? 0.85 : 0.12;
 
-        ctx.lineWidth = (isFocus ? 2 : 1) / globalScale;
-        ctx.strokeStyle = isFocus ? color : "rgba(255,255,255,0.35)";
-        ctx.stroke();
+        if (isFocus) {
+          ctx.lineWidth = 2 / globalScale;
+          ctx.strokeStyle = color;
+          ctx.stroke();
+        }
 
         // A halo so the focused memory reads as lit rather than merely bigger.
         if (isFocus) {
@@ -222,14 +266,22 @@ function GraphCanvasImpl({
         }
       }
 
-      if (globalScale > 1.2 || isFocus || (focusing && highlighted)) {
-        ctx.globalAlpha =
-          focusing && !highlighted ? 0.15 : Math.min(1, (globalScale - 1.2) * 2 || 1);
-        ctx.font = `${11 / globalScale}px var(--font-mono), monospace`;
+      // Labels are sized in world units, proportional to the node, so text
+      // and node keep their relationship at every zoom level. Sizing by
+      // 1/globalScale instead pins text to a fixed pixel height, which makes
+      // it tower over the nodes as soon as the view zooms in.
+      const labelled = focusing ? highlighted : globalScale > 1.2;
+      if (labelled) {
+        ctx.globalAlpha = focusing && !highlighted ? 0 : 1;
+        // Proportional to the node, but capped in screen pixels: a small
+        // graph zooms in hard, and a purely proportional label then renders
+        // several times the size of the node it names.
+        const fontWorld = Math.min(radius * 1.25, MAX_LABEL_PX / globalScale);
+        ctx.font = `${fontWorld}px ${LABEL_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = "#E2E8F0";
-        ctx.fillText(node.title, x, y + radius + 2 / globalScale);
+        ctx.fillStyle = "#CBD5E1";
+        ctx.fillText(truncateLabel(node.title), x, y + radius + fontWorld * 0.6);
       }
 
       ctx.globalAlpha = 1;
@@ -399,6 +451,11 @@ function GraphCanvasImpl({
   // selecting a node never stutters the simulation.
   const nodeCount = data.nodes.length;
 
+  // Read by the coupling force every tick, so new edges take effect without
+  // re-registering it.
+  const linksRef = useRef(data.links);
+  linksRef.current = data.links;
+
   useEffect(() => {
     applyFocus(focusId, neighbourIds);
     // data.nodes is read only for its length here: focus restyles objects
@@ -422,7 +479,20 @@ function GraphCanvasImpl({
       "drift",
       motion ? createDriftForce({ dimensions: mode === "3d" ? 3 : 2 }) : null,
     );
-  }, [motion, graphRef, mode]);
+
+    // Coupling rides with the drift: without motion there is nothing to pass
+    // between neighbours, and a permanent spring on a still graph would only
+    // fight the settled layout.
+    graph.d3Force(
+      "living",
+      motion
+        ? createLivingLinksForce(
+            () => linksRef.current,
+            40 + Math.min(90, 2 * Math.sqrt(Math.max(nodeCount, 1))),
+          )
+        : null,
+    );
+  }, [motion, graphRef, mode, nodeCount]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -466,7 +536,7 @@ function GraphCanvasImpl({
       linkColor: () => LINK_COLOR,
       linkWidth,
       linkDirectionalParticles: linkParticles,
-      linkDirectionalParticleWidth: 0.7,
+      linkDirectionalParticleWidth: mode === "3d" ? 0.7 : 2.4,
       linkDirectionalParticleSpeed: 0.006,
       onNodeHover: onHover,
       onNodeClick: onSelect,
@@ -477,6 +547,7 @@ function GraphCanvasImpl({
     }),
     [
       data,
+      mode,
       width,
       height,
       linkWidth,

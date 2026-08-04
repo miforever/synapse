@@ -20,6 +20,7 @@ import {
 } from "three";
 import SpriteText from "three-spritetext";
 
+import { glowCanvas } from "@/lib/glow";
 import { getCircularThumbnail } from "@/lib/image-cache";
 import { colorForClass } from "@/lib/node-classes";
 import type { GraphNode } from "@/lib/types";
@@ -42,7 +43,6 @@ const classMaterials = new Map<string, SpriteMaterial>();
 const classTextures = new Map<string, CanvasTexture>();
 const thumbnailMaterials = new Map<string, SpriteMaterial>();
 
-const DISC_SIZE = 128;
 const LABEL_HEIGHT = 1.7;
 const LABEL_MAX_CHARS = 22;
 
@@ -71,26 +71,13 @@ function truncate(title: string): string {
 }
 const THUMB_SIZE = 128;
 
-/** A soft radial disc, tinted per class — nodes read as glowing points. */
-function discTexture(color: string): CanvasTexture {
+/** Wraps the shared glow canvas so 2D and 3D nodes look like one object. */
+function discTexture(color: string): CanvasTexture | null {
   const cached = classTextures.get(color);
   if (cached) return cached;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = DISC_SIZE;
-  const ctx = canvas.getContext("2d");
-
-  if (ctx) {
-    const half = DISC_SIZE / 2;
-    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(0.55, color);
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(half, half, half, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  const canvas = glowCanvas(color);
+  if (!canvas) return null;
 
   const texture = new CanvasTexture(canvas);
   classTextures.set(color, texture);
