@@ -17,7 +17,6 @@ import {
   type GraphData,
   type PositionedNode,
 } from "@/lib/force-graph";
-import { glowCanvas } from "@/lib/glow";
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
@@ -228,31 +227,14 @@ function GraphCanvasImpl({
           radius * 2,
         );
       } else {
-        // The same radial glow the 3D sprites use, so a node reads as lit
-        // rather than as a flat vector circle.
-        const glow = glowCanvas(color);
-        if (glow) {
-          const bloom = radius * 3.4;
-          ctx.drawImage(glow, x - bloom, y - bloom, bloom * 2, bloom * 2);
-        }
-
-        ctx.beginPath();
-        ctx.arc(x, y, radius * 0.62, 0, 2 * Math.PI);
-        ctx.fillStyle = "#F8FAFC";
-        ctx.fill();
-
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, 2 * Math.PI);
         ctx.fillStyle = color;
-        ctx.globalAlpha *= 0.55;
         ctx.fill();
-        ctx.globalAlpha = !focusing ? 1 : isFocus ? 1 : highlighted ? 0.85 : 0.12;
 
-        if (isFocus) {
-          ctx.lineWidth = 2 / globalScale;
-          ctx.strokeStyle = color;
-          ctx.stroke();
-        }
+        ctx.lineWidth = (isFocus ? 2 : 1) / globalScale;
+        ctx.strokeStyle = isFocus ? color : "rgba(255,255,255,0.35)";
+        ctx.stroke();
 
         // A halo so the focused memory reads as lit rather than merely bigger.
         if (isFocus) {
