@@ -1,31 +1,27 @@
 /**
  * Ambient drift, so a settled graph reads as alive rather than frozen.
  *
- * Each node is anchored to its resting position and springs toward a target
- * that traces a slow sine around that anchor. Excursion is therefore bounded
- * by `amplitude` — nodes orbit where they belong and cannot wander off, which
- * pushing velocity around alone does not guarantee.
+ * Each node rides a slow sine on its own phase, applied as a velocity nudge.
+ * There is deliberately no anchor and no centre term: an earlier version
+ * sprang each node toward a remembered home, which collapsed the entire graph
+ * to a point whenever those anchors were captured before the layout had
+ * resolved. Nothing here references the origin, so drift can never pull the
+ * graph inward.
  *
- * The anchor itself follows the node very slowly, so a genuine layout change
- * (new memories arriving, a filter clearing) is adopted as the new home
- * without the fast motion dragging it.
+ * Bounded by construction: integrating a sine into velocity yields a cosine in
+ * position, and the renderer's velocity decay damps it further, so nodes
+ * wobble in place instead of accumulating a direction and wandering off.
  *
  * The force ignores d3's `alpha` on purpose. Layout forces fade as the graph
  * settles; this one must not, or the motion would die with them.
  */
 
 interface SimNode {
-  x?: number;
-  y?: number;
   z?: number;
   vx?: number;
   vy?: number;
   vz?: number;
   fx?: number;
-  /** Anchor — the position this node drifts around. */
-  __hx?: number;
-  __hy?: number;
-  __hz?: number;
   /** Fixed offset so neighbours never pulse in unison. */
   __phase?: number;
 }
@@ -44,26 +40,15 @@ const RATE_X = 0.11;
 const RATE_Y = 0.09;
 const RATE_Z = 0.07;
 
-/**
- * How fast the anchor adopts a real layout change. Deliberately tiny: the
- * anchor also sees the node's own drift, so a larger value slowly inflates
- * the orbit. Simulated over 10 minutes, 0.0002 holds excursion to roughly the
- * amplitude, while 0.0015 let it grow to 3x.
- */
-const ANCHOR_FOLLOW = 0.0002;
-
 interface Options {
-  /** Peak excursion from the anchor, in graph units. */
-  amplitude?: number;
-  /** Spring constant pulling the node toward its moving target. */
-  stiffness?: number;
+  /** Velocity nudge per tick. Tiny; velocity decay damps it further. */
+  strength?: number;
   /** 3 animates z as well; 2 leaves the plane alone. */
   dimensions?: 2 | 3;
 }
 
 export function createDriftForce({
-  amplitude = 3,
-  stiffness = 0.015,
+  strength = 0.05,
   dimensions = 3,
 }: Options = {}): DriftForce {
   let nodes: SimNode[] = [];
@@ -74,29 +59,13 @@ export function createDriftForce({
     for (const node of nodes) {
       // Pinned nodes (dragged into place) stay exactly where they were put.
       if (node.fx !== undefined) continue;
-      if (node.x === undefined || node.y === undefined) continue;
-
-      // Adopt the current position as the anchor the first time we see it.
-      node.__hx ??= node.x;
-      node.__hy ??= node.y;
-
-      node.__hx += (node.x - node.__hx) * ANCHOR_FOLLOW;
-      node.__hy += (node.y - node.__hy) * ANCHOR_FOLLOW;
 
       const phase = node.__phase ?? 0;
-
-      const targetX = node.__hx + Math.sin(t * RATE_X + phase) * amplitude;
-      const targetY = node.__hy + Math.cos(t * RATE_Y + phase * 1.3) * amplitude;
-
-      node.vx = (node.vx ?? 0) + (targetX - node.x) * stiffness;
-      node.vy = (node.vy ?? 0) + (targetY - node.y) * stiffness;
+      node.vx = (node.vx ?? 0) + Math.sin(t * RATE_X + phase) * strength;
+      node.vy = (node.vy ?? 0) + Math.cos(t * RATE_Y + phase * 1.3) * strength;
 
       if (dimensions === 3 && node.z !== undefined) {
-        node.__hz ??= node.z;
-        node.__hz += (node.z - node.__hz) * ANCHOR_FOLLOW;
-
-        const targetZ = node.__hz + Math.sin(t * RATE_Z + phase * 0.7) * amplitude;
-        node.vz = (node.vz ?? 0) + (targetZ - node.z) * stiffness;
+        node.vz = (node.vz ?? 0) + Math.sin(t * RATE_Z + phase * 0.7) * strength;
       }
     }
   };
@@ -105,9 +74,6 @@ export function createDriftForce({
     nodes = simNodes;
     nodes.forEach((node, index) => {
       node.__phase = index * PHASE_STEP;
-      // Clear stale anchors so a re-registered force re-homes to wherever the
-      // nodes actually are now.
-      node.__hx = node.__hy = node.__hz = undefined;
     });
   };
 

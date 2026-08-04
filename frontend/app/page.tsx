@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlBar } from "@/components/ControlBar";
 import { type CanvasMode, GraphCanvas } from "@/components/GraphCanvas";
 import { HoverCard } from "@/components/HoverCard";
-import { Logo } from "@/components/Logo";
 import { NodeDrawer } from "@/components/NodeDrawer";
 import { SearchPanel } from "@/components/SearchPanel";
+import { StatusOverlay } from "@/components/StatusOverlay";
 import { useElementSize } from "@/hooks/useElementSize";
 import { useGraph } from "@/hooks/useGraph";
 import { useGraphStream } from "@/hooks/useGraphStream";
@@ -29,7 +29,6 @@ export default function Home() {
   const [hovered, setHovered] = useState<GraphNode | null>(null);
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
-  const [nodeCount, setNodeCount] = useState(0);
   const [query, setQuery] = useState("");
   const [activeClasses, setActiveClasses] = useState<Set<string>>(new Set());
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
@@ -40,72 +39,65 @@ export default function Home() {
    * built once from the snapshot and never replaced, so switching 2D/3D reuses
    * the same node objects and their settled positions carry across.
    */
-  const data = useMemo<GraphData>(
-    () => ({ nodes: snapshot?.nodes ?? [], links: snapshot?.edges ?? [] }),
-    [snapshot],
-  );
+  const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
 
-  useEffect(() => setNodeCount(data.nodes.length), [data]);
+  useEffect(() => {
+    if (!snapshot) return;
+    setData({ nodes: snapshot.nodes, links: snapshot.edges });
+  }, [snapshot]);
 
-  // Live mutations go straight into the renderer. Routing them through React
-  // state would rebuild the dataset and restart the physics on every write.
+  const nodeCount = data.nodes.length;
+
+  /**
+   * Live mutations replace the wrapper object but reuse the existing node
+   * objects, which is what react-force-graph diffs on: untouched nodes keep
+   * their positions and velocities, and only genuinely new ones are seeded,
+   * so a write never restarts the layout.
+   */
   const streamHandlers = useMemo(
     () => ({
-      onNewNode: (node: GraphNode, edges: GraphEdge[]) => {
-        const graph = graphRef.current;
-        if (!graph) return;
+      onNewNode: (node: GraphNode, edges: GraphEdge[]) =>
+        setData((current) =>
+          current.nodes.some((existing) => existing.id === node.id)
+            ? current
+            : { nodes: [...current.nodes, node], links: [...current.links, ...edges] },
+        ),
 
-        const current = graph.graphData();
-        if (current.nodes.some((existing) => existing.id === node.id)) return;
+      onNodeUpdated: (node: GraphNode) =>
+        setData((current) => {
+          const existing = current.nodes.find((item) => item.id === node.id);
+          if (!existing) return current;
+          // Mutate in place so the simulation keeps the node where it is.
+          Object.assign(existing, node);
+          setSelected((open) =>
+            open?.id === node.id ? { ...open, ...node } : open,
+          );
+          return { nodes: [...current.nodes], links: current.links };
+        }),
 
-        graph.graphData({
-          nodes: [...current.nodes, node],
-          links: [...current.links, ...edges],
-        });
-        setNodeCount(current.nodes.length + 1);
-      },
-
-      onNodeUpdated: (node: GraphNode) => {
-        const graph = graphRef.current;
-        if (!graph) return;
-
-        const current = graph.graphData();
-        const existing = current.nodes.find((item) => item.id === node.id);
-        if (!existing) return;
-
-        // Copy the new fields onto the node the simulation already holds, so
-        // an edit redraws in place instead of moving the node.
-        Object.assign(existing, node);
-        graph.graphData(current);
-        setSelected((open) => (open?.id === node.id ? { ...open, ...node } : open));
-      },
-
-      onNodeDeleted: (nodeId: string) => {
-        const graph = graphRef.current;
-        if (!graph) return;
-
-        const current = graph.graphData();
-        const nodes = current.nodes.filter((item) => item.id !== nodeId);
-        if (nodes.length === current.nodes.length) return;
-
-        graph.graphData({
-          nodes,
-          // Edges cascade server-side; drop them here by endpoint.
-          links: current.links.filter(
-            (link) =>
-              endpointId(link.source) !== nodeId &&
-              endpointId(link.target) !== nodeId,
-          ),
-        });
-        setNodeCount(nodes.length);
-        setSelected((open) => (open?.id === nodeId ? null : open));
-        setHovered((open) => (open?.id === nodeId ? null : open));
-      },
+      onNodeDeleted: (nodeId: string) =>
+        setData((current) => {
+          const nodes = current.nodes.filter((item) => item.id !== nodeId);
+          if (nodes.length === current.nodes.length) return current;
+          setSelected((open) => (open?.id === nodeId ? null : open));
+          setHovered((open) => (open?.id === nodeId ? null : open));
+          return {
+            nodes,
+            // Edges cascade server-side; drop them here by endpoint.
+            links: current.links.filter(
+              (link) =>
+                endpointId(link.source) !== nodeId &&
+                endpointId(link.target) !== nodeId,
+            ),
+          };
+        }),
     }),
     [],
   );
 
   const connected = useGraphStream(streamHandlers);
+
+
 
   const focusNode = useCallback((node: GraphNode) => {
     const graph = graphRef.current;
@@ -143,12 +135,10 @@ export default function Home() {
 
   const handleNavigate = useCallback(
     (nodeId: string) => {
-      const target = graphRef.current
-        ?.graphData()
-        .nodes.find((node) => node.id === nodeId);
+      const target = data.nodes.find((node) => node.id === nodeId);
       if (target) handleSelect(target);
     },
-    [handleSelect],
+    [handleSelect, data.nodes],
   );
 
   // Chip vocabularies come from the loaded graph rather than another request:
@@ -165,6 +155,25 @@ export default function Home() {
       tags: [...tagSet].sort(),
     };
   }, [data.nodes]);
+
+  // Direct connections of the open memory, so focus can keep its immediate
+  // neighbourhood legible instead of dimming everything but one node.
+  const neighbourIds = useMemo(() => {
+    if (!selected) return new Set<string>();
+    const ids = new Set<string>();
+    for (const link of data.links) {
+      const source = endpointId(link.source);
+      const target = endpointId(link.target);
+      if (source === selected.id) ids.add(target);
+      else if (target === selected.id) ids.add(source);
+    }
+    return ids;
+  }, [selected, data.links]);
+
+  const nodesById = useMemo(
+    () => new Map(data.nodes.map((node) => [node.id, node])),
+    [data.nodes],
+  );
 
   const filtering = activeClasses.size > 0 || activeTags.size > 0;
 
@@ -224,12 +233,14 @@ export default function Home() {
           mode={mode}
           width={width}
           height={height}
-          dimmed={selected !== null}
+          focusId={selected?.id ?? null}
+          neighbourIds={neighbourIds}
           showThumbnails={showThumbnails}
           visibleIds={visibleIds}
           motion={motion}
           onHover={setHovered}
           onSelect={handleSelect}
+          onDeselect={() => setSelected(null)}
         />
       )}
 
@@ -255,6 +266,7 @@ export default function Home() {
         onMediaChange={updateMedia}
         motion={motion}
         onMotionChange={setMotionOn}
+        reducedMotion={reducedMotion}
       />
 
       <HoverCard
@@ -267,29 +279,19 @@ export default function Home() {
       <NodeDrawer
         node={selected}
         edges={data.links}
+        nodesById={nodesById}
         media={settings.media}
         onClose={() => setSelected(null)}
         onNavigate={handleNavigate}
       />
 
-      {!loading && nodeCount === 0 && (
-        <EmptyState error={error} />
-      )}
-    </main>
-  );
-}
+      <StatusOverlay
+        loading={loading}
+        error={error}
+        empty={nodeCount === 0}
+        onRetry={() => window.location.reload()}
+      />
 
-function EmptyState({ error }: { error: string | null }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-      <div className="glass-panel max-w-sm rounded-xl p-8 text-center">
-        <Logo size={44} />
-        <p className="mt-6 text-sm text-slate-400">
-          {error
-            ? `Cannot reach the daemon — ${error}`
-            : "No memories yet. Connect an agent and call add_memory to watch the graph build itself."}
-        </p>
-      </div>
-    </div>
+    </main>
   );
 }

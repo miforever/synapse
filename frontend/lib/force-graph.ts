@@ -20,11 +20,17 @@ export interface Coords {
   z?: number;
 }
 
+/**
+ * Note there is no `graphData` here: react-force-graph exposes that as a prop,
+ * not a ref method. Reading or writing the graph through the handle throws at
+ * runtime, so live updates must flow through the `graphData` prop instead.
+ */
 export interface ForceGraphHandle {
-  graphData: (data?: GraphData) => GraphData;
   d3ReheatSimulation?: () => void;
-  d3Force?: (name: string, force: unknown) => void;
-  zoomToFit: (durationMs?: number, padding?: number) => void;
+  /** Doubles as a getter when called with a name only. */
+  d3Force?: (name: string, force?: unknown) => unknown;
+  zoomToFit?: (durationMs?: number, padding?: number) => void;
+  getGraphBbox?: () => { x: [number, number]; y: [number, number]; z?: [number, number] } | null;
   /** 3D only. */
   cameraPosition?: (
     position: Coords,

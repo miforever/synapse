@@ -1,6 +1,7 @@
 "use client";
 
 import type { CanvasMode } from "./GraphCanvas";
+import { SettingsMenu } from "./SettingsMenu";
 import type { MediaSettings } from "@/lib/types";
 
 interface Props {
@@ -12,15 +13,15 @@ interface Props {
   onMediaChange: (media: Partial<MediaSettings>) => void;
   motion: boolean;
   onMotionChange: (motion: boolean) => void;
+  reducedMotion: boolean;
 }
 
-const MEDIA_SWITCHES: { key: keyof MediaSettings; label: string }[] = [
-  { key: "images", label: "img" },
-  { key: "audio", label: "audio" },
-  { key: "video", label: "video" },
-  { key: "remote_sources", label: "remote" },
-];
+const MODES: CanvasMode[] = ["2d", "3d"];
 
+/**
+ * Only what you reach for while navigating: identity, scale, and view mode.
+ * Everything else lives behind the settings button.
+ */
 export function ControlBar({
   mode,
   onModeChange,
@@ -30,38 +31,49 @@ export function ControlBar({
   onMediaChange,
   motion,
   onMotionChange,
+  reducedMotion,
 }: Props) {
   return (
-    <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-4 rounded-xl px-4 py-2.5">
-      {/* Mark only here — the wordmark would crowd the control strip. */}
+    <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-3 rounded-xl px-3 py-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/branding/synapse-mark.svg" alt="SYNAPSE" width={22} height={22} />
+      <img
+        src="/branding/synapse-mark.svg"
+        alt="SYNAPSE"
+        width={20}
+        height={20}
+        className="shrink-0"
+      />
 
-      <div className="h-4 w-px bg-white/10" />
-
-      <div className="flex items-center gap-2">
+      <span className="flex items-center gap-1.5" title={connected ? "Live" : "Reconnecting…"}>
         <span
           className={`h-1.5 w-1.5 rounded-full ${
             connected ? "bg-emerald-400" : "bg-slate-600"
           }`}
-          title={connected ? "Live" : "Disconnected"}
         />
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
-          {nodeCount} node{nodeCount === 1 ? "" : "s"}
+        <span
+          data-testid="memory-count"
+          className="text-xs tabular-nums text-slate-300"
+        >
+          {nodeCount}
         </span>
-      </div>
+        <span className="text-[10px] text-slate-500">
+          {nodeCount === 1 ? "memory" : "memories"}
+        </span>
+      </span>
 
-      <div className="h-4 w-px bg-white/10" />
+      <span className="h-4 w-px bg-white/10" />
 
-      <div className="flex gap-1">
-        {(["2d", "3d"] as const).map((value) => (
+      {/* Segmented control: the two modes read as one choice, not two buttons. */}
+      <div className="flex rounded-md bg-black/30 p-0.5">
+        {MODES.map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onModeChange(value)}
-            className={`rounded-md px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+            aria-pressed={mode === value}
+            className={`rounded px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
               mode === value
-                ? "bg-cyan-400/15 text-cyan-300"
+                ? "bg-cyan/15 text-cyan"
                 : "text-slate-500 hover:text-slate-300"
             }`}
           >
@@ -70,40 +82,15 @@ export function ControlBar({
         ))}
       </div>
 
-      <div className="h-4 w-px bg-white/10" />
+      <span className="h-4 w-px bg-white/10" />
 
-      <button
-        type="button"
-        onClick={() => onMotionChange(!motion)}
-        title="Ambient node drift"
-        className={`rounded-md px-2 py-1 font-mono text-[10px] transition ${
-          motion
-            ? "bg-violet/15 text-violet"
-            : "text-slate-600 hover:text-slate-400"
-        }`}
-      >
-        drift
-      </button>
-
-      <div className="h-4 w-px bg-white/10" />
-
-      <div className="flex gap-1">
-        {MEDIA_SWITCHES.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onMediaChange({ [key]: !media[key] })}
-            title={`Toggle ${key.replace("_", " ")} in memory content`}
-            className={`rounded-md px-2 py-1 font-mono text-[10px] transition ${
-              media[key]
-                ? "bg-white/10 text-slate-200"
-                : "text-slate-600 hover:text-slate-400"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <SettingsMenu
+        media={media}
+        onMediaChange={onMediaChange}
+        motion={motion}
+        onMotionChange={onMotionChange}
+        reducedMotion={reducedMotion}
+      />
     </div>
   );
 }
