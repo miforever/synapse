@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlBar } from "@/components/ControlBar";
 import { type CanvasMode, GraphCanvas } from "@/components/GraphCanvas";
 import { HoverCard } from "@/components/HoverCard";
+import { Logo } from "@/components/Logo";
 import { NodeDrawer } from "@/components/NodeDrawer";
 import { useElementSize } from "@/hooks/useElementSize";
 import { useGraph } from "@/hooks/useGraph";
@@ -170,15 +171,7 @@ function EmptyState({ error }: { error: string | null }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
       <div className="glass-panel max-w-sm rounded-xl p-8 text-center">
-        {/* Transparent lockup — the plated variant would show its own
-            background against the glass panel. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/branding/synapse-logo.svg"
-          alt="SYNAPSE — Memory Graph Daemon"
-          width={240}
-          className="mx-auto"
-        />
+        <Logo size={44} />
         <p className="mt-6 text-sm text-slate-400">
           {error
             ? `Cannot reach the daemon — ${error}`
