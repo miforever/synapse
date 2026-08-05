@@ -10,6 +10,7 @@ from app.models.edges import EdgeCreate
 from app.models.nodes import NodeCreate, NodeUpdate
 from app.services import edges as edges_service
 from app.services import nodes as nodes_service
+from app.services import search as search_service
 from app.ws.events import (
     broadcast_new_node,
     broadcast_node_deleted,
@@ -19,8 +20,13 @@ from app.ws.events import (
 
 @mcp.tool
 async def search_index(query: str, limit: int = 5) -> list[dict[str, str]]:
-    """Full-text search returning lightweight candidates (id, type, title, summary)."""
-    results = await nodes_service.search_index(db.conn, query, limit)
+    """Search memories by keyword and meaning, returning lightweight candidates.
+
+    Combines exact full-text matching with semantic similarity, so a query
+    phrased differently from the stored wording still finds it. Returns only
+    id, type, title and summary — call read_node for the full content.
+    """
+    results = await search_service.search(db.conn, query, limit)
     return [result.model_dump() for result in results]
 
 

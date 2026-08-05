@@ -1,9 +1,43 @@
+import logging
+from contextlib import suppress
+
 import aiosqlite
 
 from app.core.config import settings
-from app.core.schema import DEFAULT_NODE_TYPES, PRAGMAS, SCHEMA
+from app.core.schema import (
+    DEFAULT_NODE_TYPES,
+    PRAGMAS,
+    SCHEMA,
+    VECTOR_TABLE,
+)
+from app.services import vectors
+
+logger = logging.getLogger(__name__)
 
 SEED_TYPES_SQL = "INSERT OR IGNORE INTO node_types (name) VALUES (?)"
+
+
+async def _load_vector_extension(conn: aiosqlite.Connection) -> bool:
+    """Load sqlite-vec, which provides the vector index.
+
+    Some SQLite builds are compiled without extension loading. Semantic search
+    is unavailable there, but keyword search and everything else still work, so
+    this reports failure instead of refusing to start.
+    """
+    try:
+        import sqlite_vec
+
+        await conn.enable_load_extension(True)
+        await conn.load_extension(sqlite_vec.loadable_path())
+        return True
+    except Exception:
+        logger.warning(
+            "sqlite-vec unavailable; semantic search disabled", exc_info=True
+        )
+        return False
+    finally:
+        with suppress(Exception):
+            await conn.enable_load_extension(False)
 
 
 async def init_db(db_path: str | None = None) -> aiosqlite.Connection:
@@ -13,6 +47,10 @@ async def init_db(db_path: str | None = None) -> aiosqlite.Connection:
     for pragma in PRAGMAS:
         await conn.execute(pragma)
     await conn.executescript(SCHEMA)
+
+    if await _load_vector_extension(conn):
+        await conn.executescript(VECTOR_TABLE.format(dim=settings.embedding_dim))
+        vectors.mark_available(conn)
     await conn.executemany(SEED_TYPES_SQL, [(name,) for name in DEFAULT_NODE_TYPES])
     await conn.commit()
     return conn

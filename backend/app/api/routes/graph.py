@@ -6,6 +6,7 @@ from app.models.nodes import NodeOut, NodeSearchResult, NodeUpdate
 from app.services import edges as edges_service
 from app.services import graph as graph_service
 from app.services import nodes as nodes_service
+from app.services import search as search_service
 from app.ws.events import broadcast_node_deleted, broadcast_node_updated
 
 router = APIRouter(tags=["graph"])
@@ -19,14 +20,12 @@ async def read_graph() -> GraphSnapshot:
 
 @router.get("/search")
 async def search(q: str, limit: int = 20) -> list[NodeSearchResult]:
-    """Full-text search over titles, summaries, and content.
+    """Search memories by keyword and meaning.
 
-    Returns ranked candidates. When hybrid vector ranking lands the response
-    shape stays the same — only the ordering changes.
+    Full-text and semantic rankings are fused, so exact terms and paraphrases
+    both find their memory.
     """
-    if not q.strip():
-        return []
-    return await nodes_service.search_index(db.conn, q, limit)
+    return await search_service.search(db.conn, q, limit)
 
 
 @router.get("/nodes/{node_id}")

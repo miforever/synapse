@@ -9,11 +9,16 @@ services:
       - "8000:8000"
     volumes:
       - synapse-data:/app/data
+      # Survives container recreation so the model is fetched once.
+      - synapse-models:/app/models
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      # Generous: the first start downloads the embedding model before the
+      # daemon is ready to answer.
+      retries: 60
+      start_period: 30s
 
   frontend:
     build:
@@ -29,3 +34,4 @@ services:
 
 volumes:
   synapse-data:
+  synapse-models:

@@ -89,6 +89,14 @@ END;
 
 SCHEMA = TABLES + INDEXES + FULLTEXT
 
+# Needs the sqlite-vec extension loaded first, so it is applied separately.
+VECTOR_TABLE = """
+CREATE VIRTUAL TABLE IF NOT EXISTS node_vectors USING vec0(
+    node_id TEXT PRIMARY KEY,
+    embedding float[{dim}]
+);
+"""
+
 PRAGMAS = (
     "PRAGMA journal_mode=WAL",
     "PRAGMA synchronous=NORMAL",

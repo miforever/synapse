@@ -28,6 +28,7 @@ dumping a transcript would.
 | -------- | -------------------------------------------------------------- |
 | Daemon   | Python 3.11, FastAPI, uvicorn                                    |
 | Storage  | SQLite via aiosqlite — WAL journaling, FTS5 full-text search     |
+| Search   | Hybrid keyword + semantic, via sqlite-vec and local ONNX embeddings |
 | Agents   | FastMCP (Model Context Protocol)                                 |
 | Realtime | WebSockets                                                       |
 | Canvas   | Next.js, Tailwind CSS, react-force-graph 2D/3D, Three.js         |
@@ -121,7 +122,7 @@ Exposed over MCP:
 
 | Tool                              | Purpose                                        |
 | --------------------------------- | ---------------------------------------------- |
-| `search_index(query, limit)`      | FTS5 search returning lightweight candidates    |
+| `search_index(query, limit)`      | Hybrid keyword + semantic search, lightweight candidates |
 | `read_node(node_id)`              | Full content and immediate connections          |
 | `traverse_graph(node_id, depth)`  | Local structural map N hops out                 |
 | `add_memory(...)`                 | Persist a node, its tags, and optional edges    |
@@ -129,6 +130,32 @@ Exposed over MCP:
 | `delete_memory(node_id)`          | Remove a memory and every edge touching it      |
 | `link_memories(...)` / `unlink_memories(...)` | Connect or disconnect two memories  |
 | `list_types()` / `list_tags()`    | Existing vocabulary, so agents reuse over invent |
+
+## Search
+
+Queries run through two engines at once. Full-text search finds exact terms —
+names, identifiers, quoted phrases. Semantic search finds memories that mean
+the same thing in different words, so "smooth rendering performance" reaches a
+note about the canvas never stuttering.
+
+The two rankings are merged with reciprocal rank fusion, which needs no shared
+scale between a keyword rank and a cosine distance, and rewards memories both
+engines agree on.
+
+Embeddings run locally: `intfloat/multilingual-e5-large` as ONNX on the CPU. It
+is fetched once (~2.2GB) and then works offline — memory content is never sent
+anywhere. It is retrieval-tuned and covers 100+ languages, so notes are
+searchable in whatever language they were written.
+
+Point `SYNAPSE_EMBEDDING_MODEL` at any fastembed-supported model to trade size
+for quality; set `SYNAPSE_EMBEDDING_DIM` to match and re-run the backfill:
+
+```bash
+uv run python -m app.cli.reindex
+```
+
+If SQLite was built without extension support, semantic search is skipped and
+keyword search continues to answer on its own.
 
 ## Development
 
