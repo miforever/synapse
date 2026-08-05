@@ -14,6 +14,9 @@
 import {
   CanvasTexture,
   Group,
+  Mesh,
+  MeshBasicMaterial,
+  SphereGeometry,
   Sprite,
   SpriteMaterial,
   type Object3D,
@@ -162,7 +165,18 @@ export function buildNodeObject(
   // Labels read as annotations, so they should not be swallowed by the nodes
   // they belong to.
   label.material.depthTest = false;
+  /*
+   * Labels must never be click targets.
+   *
+   * A label is a sprite quad drawn on top of everything, and its box is far
+   * wider than the node it names. Left raycastable, they intercept clicks
+   * aimed at nodes and swallow clicks on empty space meant to dismiss the
+   * open memory — which is why selecting and deselecting took several tries.
+   */
+  label.raycast = () => undefined;
   group.add(label);
+
+  group.add(new Mesh(hitGeometry, hitMaterial));
 
   objects.set(node.id, {
     sprite,
@@ -174,6 +188,23 @@ export function buildNodeObject(
   });
   return group;
 }
+
+/**
+ * Invisible, generous click target.
+ *
+ * The visible sprite is a small quad and the graph drifts continuously, so
+ * aiming at a node is fiddly — and a near miss registers as a background click
+ * that dismisses whatever was open. A transparent mesh keeps the appearance
+ * unchanged while making the node forgiving to hit. Opacity zero rather than
+ * `visible = false`, because the raycaster skips invisible objects.
+ */
+const HIT_RADIUS = 7;
+const hitGeometry = new SphereGeometry(HIT_RADIUS, 8, 6);
+const hitMaterial = new MeshBasicMaterial({
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+});
 
 const BASE_SCALE = 10;
 // Neighbours sit between the focus and the background so the local

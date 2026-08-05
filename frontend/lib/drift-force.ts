@@ -34,11 +34,11 @@ interface DriftForce {
 // Golden angle, for well-spread phases.
 const PHASE_STEP = 2.399963;
 
-// A full cycle takes the better part of a minute. The motion should be
-// noticeable only if you watch for it — ambience, not animation.
-const RATE_X = 0.11;
-const RATE_Y = 0.09;
-const RATE_Z = 0.07;
+// A full cycle takes roughly twenty seconds. Slow enough to read as drifting
+// rather than animating, quick enough that the graph is visibly alive.
+const RATE_X = 0.31;
+const RATE_Y = 0.26;
+const RATE_Z = 0.21;
 
 interface Options {
   /** Velocity nudge per tick. Tiny; velocity decay damps it further. */
@@ -47,13 +47,28 @@ interface Options {
   dimensions?: 2 | 3;
 }
 
+/**
+ * Suspends drift without unregistering the force.
+ *
+ * Aiming at a node that is still moving is fiddly, so the graph holds still
+ * while the pointer is over one. Toggling a flag rather than re-registering
+ * keeps each node's phase, so motion resumes from where it left off instead
+ * of jumping.
+ */
+let paused = false;
+
+export function setDriftPaused(value: boolean): void {
+  paused = value;
+}
+
 export function createDriftForce({
-  strength = 0.05,
+  strength = 0.16,
   dimensions = 3,
 }: Options = {}): DriftForce {
   let nodes: SimNode[] = [];
 
   const force: DriftForce = () => {
+    if (paused) return;
     const t = performance.now() / 1000;
 
     for (const node of nodes) {

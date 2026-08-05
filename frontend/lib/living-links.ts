@@ -40,10 +40,28 @@ function resolved(endpoint: SimNode | string): SimNode | null {
   return typeof endpoint === "object" ? endpoint : null;
 }
 
+interface Options {
+  /**
+   * Fraction of the velocity difference exchanged per tick.
+   *
+   * Must stay well below 1: this runs every frame, so even a modest value
+   * compounds. Anything at or above 2 amplifies rather than shares, and
+   * velocities diverge to infinity within a few frames — enough to kill the
+   * renderer process outright.
+   */
+  coupling?: number;
+}
+
+/** Above this the exchange amplifies instead of sharing. */
+const MAX_COUPLING = 0.5;
+
 export function createLivingLinksForce(
   getLinks: () => SimLink[],
-  coupling = 0.06,
+  { coupling = 0.06 }: Options = {},
 ): LivingLinksForce {
+  // Named options rather than a positional number, and clamped: passing the
+  // wrong quantity here is not a subtle bug, it crashes the tab.
+  const rate = Math.min(Math.max(coupling, 0), MAX_COUPLING);
   const force: LivingLinksForce = () => {
     for (const link of getLinks()) {
       const source = resolved(link.source);
@@ -52,9 +70,9 @@ export function createLivingLinksForce(
 
       // Half the velocity difference, applied in opposite directions: the pair
       // drifts toward a shared motion without either being pulled anywhere.
-      const shareX = ((target.vx ?? 0) - (source.vx ?? 0)) * coupling * 0.5;
-      const shareY = ((target.vy ?? 0) - (source.vy ?? 0)) * coupling * 0.5;
-      const shareZ = ((target.vz ?? 0) - (source.vz ?? 0)) * coupling * 0.5;
+      const shareX = ((target.vx ?? 0) - (source.vx ?? 0)) * rate * 0.5;
+      const shareY = ((target.vy ?? 0) - (source.vy ?? 0)) * rate * 0.5;
+      const shareZ = ((target.vz ?? 0) - (source.vz ?? 0)) * rate * 0.5;
 
       if (source.fx === undefined) {
         source.vx = (source.vx ?? 0) + shareX;

@@ -34,34 +34,34 @@ export function ControlBar({
   reducedMotion,
 }: Props) {
   return (
-    <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-3 rounded-xl px-3 py-2">
+    <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-4 rounded-2xl px-4 py-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/branding/synapse-mark.svg"
         alt="SYNAPSE"
-        width={20}
-        height={20}
+        width={26}
+        height={26}
         className="shrink-0"
       />
 
-      <span className="flex items-center gap-1.5" title={connected ? "Live" : "Reconnecting…"}>
+      <span className="flex items-center gap-2" title={connected ? "Live" : "Reconnecting…"}>
         <span
-          className={`h-1.5 w-1.5 rounded-full ${
+          className={`h-2 w-2 rounded-full ${
             connected ? "bg-emerald-400" : "bg-slate-600"
           }`}
         />
         <span
           data-testid="memory-count"
-          className="text-xs tabular-nums text-slate-300"
+          className="text-sm font-medium tabular-nums text-slate-200"
         >
           {nodeCount}
         </span>
-        <span className="text-[10px] text-slate-500">
+        <span className="text-xs text-slate-500">
           {nodeCount === 1 ? "memory" : "memories"}
         </span>
       </span>
 
-      <span className="h-4 w-px bg-white/10" />
+      <span className="h-5 w-px bg-white/10" />
 
       {/* Segmented control: the two modes read as one choice, not two buttons. */}
       <div className="flex rounded-md bg-black/30 p-0.5">
@@ -71,7 +71,7 @@ export function ControlBar({
             type="button"
             onClick={() => onModeChange(value)}
             aria-pressed={mode === value}
-            className={`rounded px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+            className={`rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition ${
               mode === value
                 ? "bg-cyan/15 text-cyan"
                 : "text-slate-500 hover:text-slate-300"
@@ -82,7 +82,7 @@ export function ControlBar({
         ))}
       </div>
 
-      <span className="h-4 w-px bg-white/10" />
+      <span className="h-5 w-px bg-white/10" />
 
       <SettingsMenu
         media={media}

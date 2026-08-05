@@ -8,11 +8,13 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import type { Object3D } from "three";
 
 import {
   CANVAS_BACKGROUND,
+  type Coords,
   type ForceGraphHandle,
   type GraphData,
   type PositionedNode,
@@ -20,7 +22,13 @@ import {
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
-import { createDriftForce } from "@/lib/drift-force";
+import { createDriftForce, setDriftPaused } from "@/lib/drift-force";
+import {
+  advancePlasma,
+  buildLinkObject,
+  disposePlasma,
+  updateLinkObject,
+} from "@/lib/link-plasma";
 import { createLivingLinksForce } from "@/lib/living-links";
 import { applyFocus, buildNodeObject, disposeSpriteCache } from "./node-sprite";
 
@@ -40,12 +48,12 @@ interface ForceGraphProps {
   cooldownTime?: number;
   linkColor?: () => string;
   linkWidth?: number | ((link: GraphEdge) => number);
-  linkDirectionalParticles?: (link: GraphEdge) => number;
+  linkDirectionalParticles?: number | ((link: GraphEdge) => number);
   linkDirectionalParticleWidth?: number;
+  linkDirectionalParticleResolution?: number;
   linkDirectionalParticleSpeed?: number;
   onNodeHover?: (node: GraphNode | null) => void;
   onNodeClick?: (node: GraphNode) => void;
-  onBackgroundClick?: () => void;
   nodeVisibility?: (node: GraphNode) => boolean;
   linkVisibility?: (link: GraphEdge) => boolean;
   enableNodeDrag?: boolean;
@@ -56,6 +64,12 @@ interface ForceGraphProps {
   warmupTicks?: number;
   // 3D only
   nodeThreeObject?: (node: GraphNode) => Object3D;
+  linkThreeObject?: (link: GraphEdge) => Object3D;
+  linkPositionUpdate?: (
+    object: Object3D,
+    coords: { start: Coords; end: Coords },
+    link: GraphEdge,
+  ) => boolean;
   nodeOpacity?: number;
   linkOpacity?: number;
   showNavInfo?: boolean;
@@ -128,7 +142,6 @@ interface Props {
   motion: boolean;
   onHover: (node: GraphNode | null) => void;
   onSelect: (node: GraphNode) => void;
-  onDeselect: () => void;
   graphRef: React.RefObject<ForceGraphHandle | null>;
 }
 
@@ -150,7 +163,9 @@ function truncateLabel(title: string): string {
     : title;
 }
 
-const LINK_COLOR = "rgba(148, 163, 184, 0.28)";
+// Lines carry the structure, so they need to read clearly against the dark
+// canvas rather than disappearing into it.
+const LINK_COLOR = "rgba(186, 200, 220, 0.55)";
 
 /**
  * The force-graph renderer.
@@ -171,9 +186,23 @@ function GraphCanvasImpl({
   motion,
   onHover,
   onSelect,
-  onDeselect,
   graphRef,
 }: Props) {
+  /**
+   * The renderer loads asynchronously through next/dynamic, so the imperative
+   * handle does not exist during the first effects. Tracking its arrival in
+   * state is what makes force registration and camera work run at all —
+   * reading the ref directly silently no-ops and never retries.
+   */
+  const [handle, setHandle] = useState<ForceGraphHandle | null>(null);
+  const attach = useCallback(
+    (instance: ForceGraphHandle | null) => {
+      graphRef.current = instance;
+      setHandle(instance);
+    },
+    [graphRef],
+  );
+
   const nodeColor = useCallback(
     (node: GraphNode) => colorForClass(node.type),
     [],
@@ -303,7 +332,7 @@ function GraphCanvasImpl({
    * count so a large graph opens up instead of clumping.
    */
   useEffect(() => {
-    const graph = graphRef.current;
+    const graph = handle;
     if (!graph?.d3Force) return;
 
     const n = Math.max(data.nodes.length, 1);
@@ -335,7 +364,12 @@ function GraphCanvasImpl({
      * sliding the opposite way. The camera fit already tracks the centroid, so
      * nothing needs the graph pinned to the origin.
      */
-    graph.d3Force("center", null);
+    const center = graph.d3Force("center") as
+      | { strength?: (value: number) => void }
+      | undefined;
+    // Removing by passing null is unreliable — the wrapper can read a falsy
+    // second argument as a getter — so the force is neutralised instead.
+    center?.strength?.(0);
 
     /*
      * No origin-referencing force here, deliberately.
@@ -354,7 +388,7 @@ function GraphCanvasImpl({
      * forces surging at full strength is exactly the sudden fast movement
      * that reads as a glitch. New nodes arrive warm enough on their own.
      */
-  }, [data.nodes.length, graphRef, mode]);
+  }, [data.nodes.length, handle, mode]);
 
   /**
    * Frame the graph after it has had time to lay out.
@@ -433,6 +467,7 @@ function GraphCanvasImpl({
   // selecting a node never stutters the simulation.
   const nodeCount = data.nodes.length;
 
+
   // Read by the coupling force every tick, so new edges take effect without
   // re-registering it.
   const linksRef = useRef(data.links);
@@ -445,12 +480,30 @@ function GraphCanvasImpl({
     // on every simulation tick.
   }, [focusId, neighbourIds, mode, nodeCount]);
 
+  /**
+   * One loop advances every pulse, rather than the renderer re-evaluating a
+   * per-link accessor each frame.
+   */
+  useEffect(() => {
+    if (mode !== "3d") return;
+
+    let frame = 0;
+    const start = performance.now();
+    const step = () => {
+      advancePlasma((performance.now() - start) / 1000);
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [mode]);
+
   useEffect(() => disposeSpriteCache, []);
+  useEffect(() => disposePlasma, []);
 
   // Registered imperatively because the force has to attach to the live
   // simulation, and re-registering on every render would reset its phases.
   useEffect(() => {
-    const graph = graphRef.current;
+    const graph = handle;
     if (!graph?.d3Force) return;
 
     // Deliberately no reheat here. The drift force ignores alpha, and the
@@ -468,29 +521,10 @@ function GraphCanvasImpl({
     graph.d3Force(
       "living",
       motion
-        ? createLivingLinksForce(
-            () => linksRef.current,
-            40 + Math.min(90, 2 * Math.sqrt(Math.max(nodeCount, 1))),
-          )
+        ? createLivingLinksForce(() => linksRef.current)
         : null,
     );
-  }, [motion, graphRef, mode, nodeCount]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      const g = graphRef.current as unknown as Record<string, unknown> | null;
-      const w = window as unknown as Record<string, unknown>;
-      w.__g = g;
-      const camFn = g?.camera as undefined | (() => { position: { x: number; y: number; z: number }; fov?: number });
-      const cam = typeof camFn === "function" ? camFn.call(g) : null;
-      const bb = (g?.getGraphBbox as undefined | (() => unknown));
-      w.__diag = JSON.stringify({
-        cam: cam ? { x: Math.round(cam.position.x), y: Math.round(cam.position.y), z: Math.round(cam.position.z), fov: cam.fov } : "none",
-        bbox: typeof bb === "function" ? bb.call(g) : "none",
-      });
-    }, 500);
-    return () => clearInterval(id);
-  }, [graphRef]);
+  }, [motion, handle, mode, nodeCount]);
 
 
   const shared = useMemo<ForceGraphProps>(
@@ -518,11 +552,19 @@ function GraphCanvasImpl({
       linkColor: () => LINK_COLOR,
       linkWidth,
       linkDirectionalParticles: linkParticles,
-      linkDirectionalParticleWidth: mode === "3d" ? 0.7 : 2.4,
+      // 3D particles are sphere meshes measured in world units, so they grow
+      // as the camera closes in — the library offers no screen-constant size.
+      // Kept small enough to read as a travelling dot rather than a bead.
+      linkDirectionalParticleWidth: mode === "3d" ? 0.22 : 2.4,
       linkDirectionalParticleSpeed: 0.006,
-      onNodeHover: onHover,
+      // Fewer facets: at this size the silhouette is a dot either way.
+      linkDirectionalParticleResolution: 4,
+      onNodeHover: (node: GraphNode | null) => {
+        // Hold the graph still while a node is under the pointer.
+        setDriftPaused(node !== null);
+        onHover(node);
+      },
       onNodeClick: onSelect,
-      onBackgroundClick: onDeselect,
       nodeVisibility,
       linkVisibility,
       onNodeDragEnd: handleDragEnd,
@@ -536,7 +578,6 @@ function GraphCanvasImpl({
       linkParticles,
       onHover,
       onSelect,
-      onDeselect,
       nodeVisibility,
       linkVisibility,
       handleDragEnd,
@@ -546,7 +587,7 @@ function GraphCanvasImpl({
   if (mode === "3d") {
     return (
       <ForceGraph3D
-        innerRef={graphRef}
+        innerRef={attach}
         {...shared}
         /*
          * Zero width draws links as plain lines. Any positive width makes the
@@ -554,9 +595,14 @@ function GraphCanvasImpl({
          * with beads rolling through them rather than the thin flowing traces
          * the 2D view has.
          */
+        linkThreeObject={buildLinkObject}
+        linkPositionUpdate={updateLinkObject}
+        // The plasma shader draws the line itself, so the renderer's own link
+        // and particle rendering are both switched off.
+        linkDirectionalParticles={0}
         linkWidth={0}
         nodeThreeObject={nodeThreeObject}
-        linkOpacity={focusId ? 0.12 : 0.3}
+        linkOpacity={focusId ? 0.12 : 0.55}
         showNavInfo={false}
       />
     );
@@ -564,7 +610,7 @@ function GraphCanvasImpl({
 
   return (
     <ForceGraph2D
-      innerRef={graphRef}
+      innerRef={attach}
       {...shared}
       nodeColor={nodeColor}
       nodeCanvasObject={paintNode2D}

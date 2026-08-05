@@ -100,7 +100,7 @@ export function SettingsMenu({
         aria-expanded={open}
         aria-label="Settings"
         title="Settings"
-        className={`rounded-md px-2 py-1 text-xs transition ${
+        className={`rounded-md px-2.5 py-1.5 text-base leading-none transition ${
           open ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
         }`}
       >

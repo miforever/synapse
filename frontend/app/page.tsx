@@ -240,7 +240,6 @@ export default function Home() {
           motion={motion}
           onHover={setHovered}
           onSelect={handleSelect}
-          onDeselect={() => setSelected(null)}
         />
       )}
 
