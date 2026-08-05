@@ -20,6 +20,8 @@ import {
   type Object3D,
 } from "three";
 
+import { type FocusLink, isLinkLit } from "./link-focus";
+
 interface Endpoint {
   x?: number;
   y?: number;
@@ -29,12 +31,15 @@ interface Endpoint {
 const VERTEX = /* glsl */ `
   attribute float aProgress;
   attribute float aPhase;
+  attribute float aFocus;
   varying float vProgress;
   varying float vPhase;
+  varying float vFocus;
 
   void main() {
     vProgress = aProgress;
     vPhase = aPhase;
+    vFocus = aFocus;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -48,6 +53,7 @@ const FRAGMENT = /* glsl */ `
   uniform vec3 uPulseColor;
   varying float vProgress;
   varying float vPhase;
+  varying float vFocus;
 
   void main() {
     // Position within the travelling cycle, offset per link so the graph does
@@ -59,10 +65,13 @@ const FRAGMENT = /* glsl */ `
     float distance = min(cycle, 1.0 - cycle);
 
     // smoothstep gives the fade-in, plateau and fade-out in one expression.
-    float intensity = smoothstep(uWidth, 0.0, distance);
+    // Scaled by focus so a receded link loses its pulse as well as its line —
+    // a dimmed edge with a bright spark still travelling it draws the eye
+    // straight back to what is meant to be in the background.
+    float intensity = smoothstep(uWidth, 0.0, distance) * vFocus;
 
     vec3 color = mix(uColor, uPulseColor, intensity);
-    gl_FragColor = vec4(color, uBase + intensity * (1.0 - uBase));
+    gl_FragColor = vec4(color, (uBase + intensity * (1.0 - uBase)) * vFocus);
   }
 `;
 
@@ -105,6 +114,36 @@ export function advancePlasma(seconds: number): void {
   if (material) material.uniforms.uTime.value = seconds;
 }
 
+/*
+ * Which memory is open, and what it connects to.
+ *
+ * Held at module level rather than passed per link: the value is the same for
+ * every edge, and the update path below runs once per link per frame.
+ */
+let focused: string | null = null;
+let neighbours: ReadonlySet<string> = new Set();
+
+/** How much of itself a receded link keeps. Enough to read as structure. */
+const DIMMED = 0.14;
+
+// Approach rate per frame. Matches the eased node focus, so lines and nodes
+// recede together instead of the graph changing in two visible stages.
+const EASE = 0.12;
+
+export function setLinkFocus(
+  focusId: string | null,
+  neighbourIds: ReadonlySet<string>,
+): void {
+  focused = focusId;
+  neighbours = neighbourIds;
+}
+
+/** Full brightness unless something else is open and this edge is not part of it. */
+function targetFocus(link: FocusLink | undefined): number {
+  if (!link) return 1;
+  return isLinkLit(link, focused, neighbours) ? 1 : DIMMED;
+}
+
 export function buildLinkObject(): Object3D {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(new Float32Array(6), 3));
@@ -119,14 +158,29 @@ export function buildLinkObject(): Object3D {
     "aPhase",
     new BufferAttribute(new Float32Array([phase, phase]), 1),
   );
+  geometry.setAttribute(
+    "aFocus",
+    new BufferAttribute(new Float32Array([1, 1]), 1),
+  );
 
-  return new Line(geometry, sharedMaterial());
+  const line = new Line(geometry, sharedMaterial());
+  line.userData.focus = 1;
+  return line;
 }
 
-/** Keep a link's geometry on its endpoints as the simulation moves them. */
+/**
+ * Keep a link's geometry on its endpoints as the simulation moves them, and
+ * ease its brightness toward whatever the current focus calls for.
+ *
+ * Focus is applied here rather than from a focus-change effect because it
+ * avoids holding a registry of live link objects: this already runs per link
+ * per frame with the link in hand, so it cannot fall out of step with what is
+ * actually on screen.
+ */
 export function updateLinkObject(
   object: Object3D,
   coords: { start: Endpoint; end: Endpoint },
+  link?: FocusLink,
 ): boolean {
   const { start, end } = coords;
   const geometry = (object as Line).geometry as BufferGeometry;
@@ -136,6 +190,20 @@ export function updateLinkObject(
   position.setXYZ(1, end.x ?? 0, end.y ?? 0, end.z ?? 0);
   position.needsUpdate = true;
   geometry.computeBoundingSphere();
+
+  const focus = geometry.getAttribute("aFocus") as BufferAttribute;
+  const current = (object.userData.focus as number) ?? 1;
+  const wanted = targetFocus(link);
+  const next = current + (wanted - current) * EASE;
+
+  // Only touch the buffer while it is actually moving; once settled this is a
+  // comparison per link per frame and nothing more.
+  if (Math.abs(next - current) > 0.001) {
+    object.userData.focus = next;
+    focus.setX(0, next);
+    focus.setX(1, next);
+    focus.needsUpdate = true;
+  }
 
   // Tells the renderer this object is positioned already and should be left
   // alone.

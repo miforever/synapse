@@ -52,6 +52,18 @@ export interface AppSettings {
   media: MediaSettings;
 }
 
+/** Where the user placed a memory by hand. `z` is absent in the 2D canvas. */
+export interface SavedPosition {
+  x: number;
+  y: number;
+  z?: number | null;
+}
+
+export interface SavedLayout {
+  mode: string;
+  positions: Record<string, SavedPosition>;
+}
+
 export const EVENT_NEW_NODE = "EVENT_NEW_NODE";
 export const EVENT_NODE_UPDATED = "EVENT_NODE_UPDATED";
 export const EVENT_NODE_DELETED = "EVENT_NODE_DELETED";

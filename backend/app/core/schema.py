@@ -47,6 +47,17 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT NOT NULL DEFAULT {_NOW}
 );
 
+-- Hand-arranged node positions, one row per canvas mode.
+--
+-- Kept apart from `nodes` on purpose: where a memory sits on the canvas is
+-- view state, not part of the memory. The two modes lay out differently, so
+-- each owns its own arrangement.
+CREATE TABLE IF NOT EXISTS layouts (
+    mode TEXT PRIMARY KEY CHECK (mode IN ('2d', '3d')),
+    positions TEXT NOT NULL DEFAULT '{{}}',
+    updated_at TEXT NOT NULL DEFAULT {_NOW}
+);
+
 CREATE TABLE IF NOT EXISTS node_tags (
     node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
     tag TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE,

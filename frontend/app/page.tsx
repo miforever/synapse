@@ -11,10 +11,15 @@ import { StatusOverlay } from "@/components/StatusOverlay";
 import { useElementSize } from "@/hooks/useElementSize";
 import { useGraph } from "@/hooks/useGraph";
 import { useGraphStream } from "@/hooks/useGraphStream";
+import { useLayout } from "@/hooks/useLayout";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useSettings } from "@/hooks/useSettings";
 import { suspendOrbit } from "@/lib/ambient-orbit";
-import type { ForceGraphHandle, GraphData } from "@/lib/force-graph";
+import type {
+  ForceGraphHandle,
+  GraphData,
+  PositionedNode,
+} from "@/lib/force-graph";
 import type { GraphEdge, GraphNode } from "@/lib/types";
 import { endpointId } from "@/lib/types";
 
@@ -48,6 +53,17 @@ export default function Home() {
   }, [snapshot]);
 
   const nodeCount = data.nodes.length;
+
+  /*
+   * Positions the user arranged by hand, restored onto the very node objects
+   * the renderer holds. Gated on the snapshot having arrived, so an empty
+   * graph can never save over a stored arrangement with nothing.
+   */
+  const { markMoved, reset: resetLayout } = useLayout({
+    mode,
+    nodes: data.nodes as PositionedNode[],
+    ready: nodeCount > 0,
+  });
 
   /**
    * Live mutations replace the wrapper object but reuse the existing node
@@ -244,6 +260,7 @@ export default function Home() {
           motion={motion}
           onHover={setHovered}
           onSelect={handleSelect}
+          onNodeMoved={markMoved}
         />
       )}
 
@@ -270,10 +287,16 @@ export default function Home() {
         motion={motion}
         onMotionChange={setMotionOn}
         reducedMotion={reducedMotion}
+        onResetLayout={resetLayout}
       />
 
       <HoverCard
-        node={selected ? null : hovered}
+        /*
+         * Previewing neighbours is most useful precisely when a memory is
+         * open — that is when you are deciding where to go next. Only the
+         * open memory itself is skipped, since the drawer already shows it.
+         */
+        node={hovered && hovered.id !== selected?.id ? hovered : null}
         connections={connectionCount}
         x={pointer.x}
         y={pointer.y}

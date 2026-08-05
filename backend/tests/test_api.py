@@ -34,3 +34,26 @@ def test_mcp_endpoint_is_live(client: TestClient) -> None:
 def test_graph_websocket_accepts_connections(client: TestClient) -> None:
     with client.websocket_connect("/ws/graph"):
         pass
+
+
+def test_layout_endpoints_are_wired(client: TestClient) -> None:
+    """Covers routing and validation; storage rules are tested at service level.
+
+    Memories are created over MCP rather than REST, so this uses ids that do
+    not exist — which also exercises the pruning of positions whose memory is
+    gone, leaving an empty arrangement behind.
+    """
+    assert client.get("/layout/3d").json()["positions"] == {}
+
+    saved = client.put(
+        "/layout/3d",
+        json={"positions": {"missing": {"x": 1.0, "y": 2.0, "z": 3.0}}},
+    )
+    assert saved.status_code == 200
+    assert saved.json() == {"mode": "3d", "positions": {}}
+
+    assert client.delete("/layout/3d").status_code == 200
+
+
+def test_layout_rejects_an_unknown_mode(client: TestClient) -> None:
+    assert client.get("/layout/holographic").status_code == 422

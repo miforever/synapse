@@ -14,6 +14,7 @@ interface Props {
   motion: boolean;
   onMotionChange: (motion: boolean) => void;
   reducedMotion: boolean;
+  onResetLayout: () => void;
 }
 
 const MODES: CanvasMode[] = ["2d", "3d"];
@@ -32,6 +33,7 @@ export function ControlBar({
   motion,
   onMotionChange,
   reducedMotion,
+  onResetLayout,
 }: Props) {
   return (
     <div className="glass-panel absolute left-5 top-5 z-20 flex items-center gap-4 rounded-2xl px-4 py-3">
@@ -90,6 +92,7 @@ export function ControlBar({
         motion={motion}
         onMotionChange={onMotionChange}
         reducedMotion={reducedMotion}
+        onResetLayout={onResetLayout}
       />
     </div>
   );

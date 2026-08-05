@@ -11,6 +11,7 @@ interface Props {
   motion: boolean;
   onMotionChange: (motion: boolean) => void;
   reducedMotion: boolean;
+  onResetLayout: () => void;
 }
 
 function Switch({
@@ -70,6 +71,7 @@ export function SettingsMenu({
   motion: motionOn,
   onMotionChange,
   reducedMotion,
+  onResetLayout,
 }: Props) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -130,6 +132,33 @@ export function SettingsMenu({
               disabled={reducedMotion}
               onChange={onMotionChange}
             />
+
+            {/*
+              Dragging a memory pins it, and pins now outlive the session — so
+              there has to be a way back. Without this the only route to an
+              automatic layout again would be editing the database.
+            */}
+            <button
+              type="button"
+              onClick={() => {
+                onResetLayout();
+                setOpen(false);
+              }}
+              className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-white/5"
+            >
+              <span className="mt-0.5 flex h-4 w-7 shrink-0 items-center justify-center text-slate-500">
+                ↺
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs text-slate-200">
+                  Reset arrangement
+                </span>
+                <span className="block text-[10px] leading-snug text-slate-500">
+                  Release every memory you placed by hand and lay the graph out
+                  afresh
+                </span>
+              </span>
+            </button>
 
             <p className="mt-2 px-2 pb-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
               Media in memories

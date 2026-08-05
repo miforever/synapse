@@ -1,4 +1,9 @@
-import type { GraphSnapshot, NodeDetail, NodeSearchResult } from "./types";
+import type {
+  GraphSnapshot,
+  NodeDetail,
+  NodeSearchResult,
+  SavedLayout,
+} from "./types";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -22,6 +27,36 @@ export function fetchNode(
   signal?: AbortSignal,
 ): Promise<NodeDetail> {
   return get<NodeDetail>(`/nodes/${encodeURIComponent(id)}`, signal);
+}
+
+export function fetchLayout(
+  mode: string,
+  signal?: AbortSignal,
+): Promise<SavedLayout> {
+  return get<SavedLayout>(`/layout/${mode}`, signal);
+}
+
+/**
+ * Write the arrangement back.
+ *
+ * `keepalive` so a save fired as the page goes away is still delivered — an
+ * ordinary fetch is cancelled when the document unloads, which is exactly the
+ * moment the last arrangement needs saving.
+ */
+export function saveLayout(
+  mode: string,
+  positions: SavedLayout["positions"],
+): Promise<Response> {
+  return fetch(`${API_URL}/layout/${mode}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ positions }),
+    keepalive: true,
+  });
+}
+
+export function clearLayout(mode: string): Promise<Response> {
+  return fetch(`${API_URL}/layout/${mode}`, { method: "DELETE" });
 }
 
 export function searchNodes(

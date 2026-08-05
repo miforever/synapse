@@ -24,6 +24,7 @@ import {
   holdOrbit,
   suspendOrbit,
 } from "@/lib/ambient-orbit";
+import { isLinkLit } from "@/lib/link-focus";
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
@@ -32,6 +33,7 @@ import {
   advancePlasma,
   buildLinkObject,
   disposePlasma,
+  setLinkFocus,
   updateLinkObject,
 } from "@/lib/link-plasma";
 import { createLivingLinksForce } from "@/lib/living-links";
@@ -51,7 +53,7 @@ interface ForceGraphProps {
   nodeLabel?: string;
   cooldownTicks?: number;
   cooldownTime?: number;
-  linkColor?: () => string;
+  linkColor?: (link: GraphEdge) => string;
   linkWidth?: number | ((link: GraphEdge) => number);
   linkDirectionalParticles?: number | ((link: GraphEdge) => number);
   linkDirectionalParticleWidth?: number;
@@ -147,6 +149,8 @@ interface Props {
   motion: boolean;
   onHover: (node: GraphNode | null) => void;
   onSelect: (node: GraphNode) => void;
+  /** A memory was dragged somewhere, so the arrangement is worth saving. */
+  onNodeMoved: () => void;
   graphRef: React.RefObject<ForceGraphHandle | null>;
 }
 
@@ -172,6 +176,10 @@ function truncateLabel(title: string): string {
 // canvas rather than disappearing into it.
 const LINK_COLOR = "rgba(186, 200, 220, 0.55)";
 
+// Enough to keep the shape of the graph legible behind the open memory
+// without competing with it. Matches the 3D shader's dimming.
+const LINK_COLOR_DIMMED = "rgba(186, 200, 220, 0.08)";
+
 /**
  * The force-graph renderer.
  *
@@ -191,6 +199,7 @@ function GraphCanvasImpl({
   motion,
   onHover,
   onSelect,
+  onNodeMoved,
   graphRef,
 }: Props) {
   /**
@@ -216,6 +225,20 @@ function GraphCanvasImpl({
   const linkWidth = useCallback(
     (link: GraphEdge) => 0.5 + link.weight * 1.5,
     [],
+  );
+
+  /*
+   * Recede the edges that are not part of the open memory's neighbourhood.
+   *
+   * This drives the 2D canvas, where it dims the travelling particles too —
+   * they take their colour from the link unless told otherwise. The 3D view
+   * cannot use it: its links are drawn by the plasma shader, which ignores
+   * the renderer's own link styling entirely.
+   */
+  const linkColor = useCallback(
+    (link: GraphEdge) =>
+      isLinkLit(link, focusId, neighbourIds) ? LINK_COLOR : LINK_COLOR_DIMMED,
+    [focusId, neighbourIds],
   );
 
   // Weight drives flow density, so strong relationships read as busier.
@@ -321,12 +344,17 @@ function GraphCanvasImpl({
   );
 
   // Dragging a node pins it. Arranging the graph by hand is only useful if
-  // the layout you make survives the next tick.
-  const handleDragEnd = useCallback((node: PositionedNode) => {
-    node.fx = node.x;
-    node.fy = node.y;
-    node.fz = node.z;
-  }, []);
+  // the layout you make survives the next tick — and, once saved, the next
+  // visit.
+  const handleDragEnd = useCallback(
+    (node: PositionedNode) => {
+      node.fx = node.x;
+      node.fy = node.y;
+      node.fz = node.z;
+      onNodeMoved();
+    },
+    [onNodeMoved],
+  );
 
   /**
    * Spread the layout to suit its size.
@@ -482,6 +510,9 @@ function GraphCanvasImpl({
 
   useEffect(() => {
     applyFocus(focusId, neighbourIds);
+    // The 3D links read this on their next frame and ease across with the
+    // nodes, so lines and pulses recede together rather than in two stages.
+    setLinkFocus(focusId, neighbourIds);
     // data.nodes is read only for its length here: focus restyles objects
     // that already exist, and depending on the array itself would rerun this
     // on every simulation tick.
@@ -596,7 +627,7 @@ function GraphCanvasImpl({
       cooldownTicks: 1e9,
       cooldownTime: 1e9,
       enableNodeDrag: true,
-      linkColor: () => LINK_COLOR,
+      linkColor,
       linkWidth,
       linkDirectionalParticles: linkParticles,
       // 3D particles are sphere meshes measured in world units, so they grow
@@ -631,6 +662,7 @@ function GraphCanvasImpl({
       nodeVisibility,
       linkVisibility,
       handleDragEnd,
+      linkColor,
     ],
   );
 
@@ -652,7 +684,8 @@ function GraphCanvasImpl({
         linkDirectionalParticles={0}
         linkWidth={0}
         nodeThreeObject={nodeThreeObject}
-        linkOpacity={focusId ? 0.12 : 0.55}
+        // No linkOpacity: with a custom link object the renderer's own opacity
+        // is never applied. Focus dimming lives in the shader instead.
         showNavInfo={false}
       />
     );
