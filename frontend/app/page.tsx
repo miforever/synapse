@@ -13,6 +13,7 @@ import { useGraph } from "@/hooks/useGraph";
 import { useGraphStream } from "@/hooks/useGraphStream";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useSettings } from "@/hooks/useSettings";
+import { suspendOrbit } from "@/lib/ambient-orbit";
 import type { ForceGraphHandle, GraphData } from "@/lib/force-graph";
 import type { GraphEdge, GraphNode } from "@/lib/types";
 import { endpointId } from "@/lib/types";
@@ -104,6 +105,9 @@ export default function Home() {
     const positioned = node as GraphNode & { x?: number; y?: number; z?: number };
 
     if (graph?.cameraPosition && positioned.z !== undefined) {
+      // The transition tweens the camera itself; the ambient rotation stands
+      // down until it lands, then picks up orbiting the newly focused memory.
+      suspendOrbit(1000);
       const distance = 120;
       const ratio =
         1 +

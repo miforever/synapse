@@ -19,6 +19,11 @@ import {
   type GraphData,
   type PositionedNode,
 } from "@/lib/force-graph";
+import {
+  advanceOrbit,
+  holdOrbit,
+  suspendOrbit,
+} from "@/lib/ambient-orbit";
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
@@ -449,6 +454,8 @@ function GraphCanvasImpl({
       if (mode === "3d" && graph.cameraPosition) {
         // Half of the default 50 degree vertical field of view.
         const distance = (radius / Math.tan((25 * Math.PI) / 180)) * 1.15;
+        // Let the framing land before the ambient rotation resumes nudging it.
+        suspendOrbit(900);
         graph.cameraPosition(
           { x: cx, y: cy, z: cz + distance },
           { x: cx, y: cy, z: cz },
@@ -481,21 +488,61 @@ function GraphCanvasImpl({
   }, [focusId, neighbourIds, mode, nodeCount]);
 
   /**
-   * One loop advances every pulse, rather than the renderer re-evaluating a
-   * per-link accessor each frame.
+   * One loop advances every pulse and turns the scene, rather than the
+   * renderer re-evaluating a per-link accessor each frame.
    */
   useEffect(() => {
     if (mode !== "3d") return;
 
     let frame = 0;
     const start = performance.now();
+    let previous = start;
+
     const step = () => {
-      advancePlasma((performance.now() - start) / 1000);
+      const now = performance.now();
+      // Clamped: coming back to a backgrounded tab reports one enormous frame,
+      // and the scene would jump a quarter turn in a single step.
+      const delta = Math.min((now - previous) / 1000, 0.05);
+      previous = now;
+
+      const seconds = (now - start) / 1000;
+      advancePlasma(seconds);
+      if (motion) advanceOrbit(handle, seconds, delta);
+
       frame = requestAnimationFrame(step);
     };
+
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [mode]);
+  }, [mode, motion, handle]);
+
+  /**
+   * Stand the rotation down while the user is driving the camera themselves.
+   *
+   * The controls fire these for dragging and for the wheel alike, so any
+   * deliberate camera move stops the ambient one instead of fighting it. The
+   * pause outlives the gesture by a moment, so releasing a drag does not snap
+   * straight back into motion.
+   */
+  useEffect(() => {
+    if (mode !== "3d") return;
+    const controls = handle?.controls?.();
+    if (!controls?.addEventListener) return;
+
+    const hold = () => holdOrbit("pointer", true);
+    const release = () => {
+      holdOrbit("pointer", false);
+      suspendOrbit(1200);
+    };
+
+    controls.addEventListener("start", hold);
+    controls.addEventListener("end", release);
+    return () => {
+      controls.removeEventListener?.("start", hold);
+      controls.removeEventListener?.("end", release);
+      holdOrbit("pointer", false);
+    };
+  }, [handle, mode]);
 
   useEffect(() => disposeSpriteCache, []);
   useEffect(() => disposePlasma, []);
@@ -560,8 +607,11 @@ function GraphCanvasImpl({
       // Fewer facets: at this size the silhouette is a dot either way.
       linkDirectionalParticleResolution: 4,
       onNodeHover: (node: GraphNode | null) => {
-        // Hold the graph still while a node is under the pointer.
+        // Hold the graph still while a node is under the pointer — both the
+        // nodes' own drift and the scene rotation, since either one moving
+        // makes the thing you are aiming at a target that walks away.
         setDriftPaused(node !== null);
+        holdOrbit("hover", node !== null);
         onHover(node);
       },
       onNodeClick: onSelect,

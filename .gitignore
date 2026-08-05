@@ -16,6 +16,7 @@ data/
 # Node
 node_modules/
 .next/
+*.tsbuildinfo
 out/
 npm-debug.log*
 

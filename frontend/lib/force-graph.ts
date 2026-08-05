@@ -37,6 +37,20 @@ export interface ForceGraphHandle {
     lookAt?: Coords,
     transitionMs?: number,
   ) => void;
+  /** 3D only. The live three.js camera, mutated in place by the ambient orbit. */
+  camera?: () => { position?: { x: number; y: number; z: number } } | undefined;
+  /**
+   * 3D only. OrbitControls: `target` is what the camera is aimed at, and the
+   * `start`/`end` events are how the ambient orbit knows to stand down while
+   * the user is dragging.
+   */
+  controls?: () =>
+    | {
+        target?: { x: number; y: number; z: number };
+        addEventListener?: (event: string, handler: () => void) => void;
+        removeEventListener?: (event: string, handler: () => void) => void;
+      }
+    | undefined;
   /** 2D only. */
   centerAt?: (x?: number, y?: number, durationMs?: number) => void;
   zoom?: (scale?: number, durationMs?: number) => void;

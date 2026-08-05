@@ -124,7 +124,7 @@ export function SettingsMenu({
               hint={
                 reducedMotion
                   ? "Disabled — your system asks for reduced motion"
-                  : "Nodes breathe slowly in place"
+                  : "Nodes breathe in place, and the 3D scene turns slowly"
               }
               checked={motionOn}
               disabled={reducedMotion}
