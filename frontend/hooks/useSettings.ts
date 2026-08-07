@@ -6,7 +6,7 @@ import { API_URL } from "@/lib/api";
 import type { AppSettings, MediaSettings } from "@/lib/types";
 
 const FALLBACK: AppSettings = {
-  media: { images: true, audio: false, video: false, remote_sources: false },
+  media: { remote_content: false },
 };
 
 /** Reads the daemon's rendering preferences and writes toggles back to it. */

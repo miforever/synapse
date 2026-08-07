@@ -16,7 +16,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SYNAPSE",
+  title: "SYNAPSSE",
   description: "Local-first memory graph daemon — spatial canvas for AI agent memory.",
 };
 

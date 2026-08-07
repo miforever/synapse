@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { colorForClass, labelForClass } from "@/lib/node-classes";
 import {
   LANE_HINTS,
@@ -9,12 +11,18 @@ import {
   type Roadmap,
   type RoadmapItem,
 } from "@/lib/roadmap";
-import type { GraphNode } from "@/lib/types";
+import type { GraphNode, Status } from "@/lib/types";
 
 interface Props {
   roadmap: Roadmap;
   onOpen: (node: GraphNode) => void;
+  /** Moving a card is the canvas's one write. */
+  onMove: (node: GraphNode, status: Status) => void;
+  error: string | null;
 }
+
+/** What the drag carries. A card is only ever dropped as an id. */
+const DRAG_TYPE = "application/x-synapsse-memory";
 
 /**
  * Work in lanes, with what each piece is waiting on.
@@ -24,7 +32,18 @@ interface Props {
  * directions are decoration — you cannot follow one to a card you cannot see —
  * where a name tells you what to go and look at.
  */
-export function RoadmapBoard({ roadmap, onOpen }: Props) {
+export function RoadmapBoard({ roadmap, onOpen, onMove, error }: Props) {
+  /**
+   * Where the card being dragged would land: which lane, and how far down it.
+   *
+   * A lane-level target was enough to change a status but told you nothing
+   * about where the card would end up, so dropping onto a full lane felt like
+   * throwing it over a wall. Tracking the slot lets the board open a gap at
+   * the point the card would go, which is the part that makes it feel like
+   * placing something rather than submitting it.
+   */
+  const [over, setOver] = useState<{ lane: Status; index: number } | null>(null);
+
   if (roadmap.total === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 px-6 py-32 text-center">
@@ -39,36 +58,124 @@ export function RoadmapBoard({ roadmap, onOpen }: Props) {
   }
 
   return (
-    <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
-      {LANES.map((lane) => (
-        <section key={lane} className="min-w-0">
-          <div className="mb-2 flex items-baseline gap-2">
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
-              {LANE_LABELS[lane]}
-            </h2>
-            <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-300">
-              {roadmap.lanes[lane].length}
-            </span>
-          </div>
-          <p className="mb-3 text-[10px] leading-snug text-slate-600">
-            {LANE_HINTS[lane]}
-          </p>
+    <>
+      {error && (
+        <p
+          role="alert"
+          className="mx-6 mt-4 rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-[11px] text-rose-200"
+        >
+          {error}
+        </p>
+      )}
 
-          <ul className="space-y-2">
-            {roadmap.lanes[lane].map((item) => (
-              <li key={item.node.id}>
-                <Card item={item} roadmap={roadmap} onOpen={onOpen} />
-              </li>
-            ))}
+      <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
+        {LANES.map((lane) => (
+          <section
+            key={lane}
+            onDragOver={(event) => {
+              // Without this the browser refuses the drop outright.
+              event.preventDefault();
+              setOver((current) =>
+                current?.lane === lane
+                  ? current
+                  : { lane, index: roadmap.lanes[lane].length },
+              );
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                setOver((current) => (current?.lane === lane ? null : current));
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setOver(null);
 
-            {roadmap.lanes[lane].length === 0 && (
-              <li className="rounded-lg border border-dashed border-white/5 px-3 py-4 text-center font-mono text-[10px] text-slate-700">
-                empty
-              </li>
-            )}
-          </ul>
-        </section>
-      ))}
+              const id = event.dataTransfer.getData(DRAG_TYPE);
+              const item = roadmap.byId.get(id);
+              // Dropping a card back into its own lane is not a change, and
+              // writing it would broadcast an edit that edited nothing.
+              if (item && item.node.status !== lane) onMove(item.node, lane);
+            }}
+            className={`min-w-0 rounded-xl border p-2 transition ${
+              over?.lane === lane ? "border-cyan/40 bg-cyan/5" : "border-transparent"
+            }`}
+          >
+            <div className="mb-2 flex items-baseline gap-2">
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                {LANE_LABELS[lane]}
+              </h2>
+              <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-300">
+                {roadmap.lanes[lane].length}
+              </span>
+            </div>
+            <p className="mb-3 text-[10px] leading-snug text-slate-600">
+              {LANE_HINTS[lane]}
+            </p>
+
+            <ul className="space-y-2">
+              {roadmap.lanes[lane].map((item, index) => (
+                <li key={item.node.id}>
+                  {/*
+                    The gap a card would drop into, opened above the card it
+                    would land before. Each card owns the slot above it, so
+                    the whole column stays a valid target without a separate
+                    strip between every pair.
+                  */}
+                  <Gap open={over?.lane === lane && over.index === index} />
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      // Above or below the midpoint decides which side of this
+                      // card the gap opens on — the same rule a text cursor
+                      // follows between two characters.
+                      const box = event.currentTarget.getBoundingClientRect();
+                      const after = event.clientY > box.top + box.height / 2;
+                      setOver({ lane, index: after ? index + 1 : index });
+                    }}
+                  >
+                    <Card
+                      item={item}
+                      roadmap={roadmap}
+                      onOpen={onOpen}
+                      onMove={onMove}
+                    />
+                  </div>
+                  {index === roadmap.lanes[lane].length - 1 && (
+                    <Gap open={over?.lane === lane && over.index === index + 1} />
+                  )}
+                </li>
+              ))}
+
+              {roadmap.lanes[lane].length === 0 && (
+                <li
+                  className={`rounded-lg border border-dashed px-3 py-4 text-center font-mono text-[10px] transition ${
+                    over?.lane === lane
+                      ? "border-cyan/40 text-cyan"
+                      : "border-white/5 text-slate-700"
+                  }`}
+                >
+                  {over?.lane === lane ? "drop to move here" : "empty"}
+                </li>
+              )}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** The space a dragged card would occupy, opening where it would land. */
+function Gap({ open }: { open: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={`overflow-hidden transition-all duration-150 ${
+        open ? "h-12 opacity-100" : "h-0 opacity-0"
+      }`}
+    >
+      <div className="mb-2 h-full rounded-xl border border-dashed border-cyan/40 bg-cyan/5" />
     </div>
   );
 }
@@ -77,10 +184,12 @@ function Card({
   item,
   roadmap,
   onOpen,
+  onMove,
 }: {
   item: RoadmapItem;
   roadmap: Roadmap;
   onOpen: (node: GraphNode) => void;
+  onMove: (node: GraphNode, status: Status) => void;
 }) {
   const { node, blockedBy, blocking, overdue } = item;
   const colour = colorForClass(node.type);
@@ -89,70 +198,102 @@ function Card({
   const settled = node.status === "done" || node.status === "dropped";
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(node)}
-      className={`w-full rounded-xl border border-white/10 bg-white/5 p-3 text-left transition hover:border-white/20 hover:bg-white/10 ${
+    <div
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(DRAG_TYPE, node.id);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+      className={`group rounded-xl border border-white/10 bg-white/5 transition hover:border-white/20 hover:bg-white/10 ${
         settled ? "opacity-60 hover:opacity-100" : ""
       }`}
     >
-      <span className="flex items-center gap-1.5">
-        <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: colour }}
-        />
-        <span
-          className="font-mono text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: colour }}
-        >
-          {labelForClass(node.type)}
-        </span>
-      </span>
-
-      <span className="mt-1.5 block text-sm font-medium leading-snug text-white">
-        {node.title}
-      </span>
-
-      <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-slate-500">
-        {node.summary}
-      </span>
-
-      {node.target_date && (
-        <span
-          className={`mt-2 flex items-center gap-1.5 font-mono text-[10px] ${
-            overdue ? "text-rose-300" : "text-slate-500"
-          }`}
-        >
-          <span aria-hidden>{overdue ? "⚠" : "◷"}</span>
-          {node.target_date}
-          <span className={overdue ? "text-rose-400/70" : "text-slate-600"}>
-            {relativeDate(node.target_date)}
+      <button
+        type="button"
+        onClick={() => onOpen(node)}
+        className="w-full cursor-grab p-3 text-left active:cursor-grabbing"
+      >
+        <span className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: colour }}
+          />
+          <span
+            className="font-mono text-[9px] uppercase tracking-[0.2em]"
+            style={{ color: colour }}
+          >
+            {labelForClass(node.type)}
           </span>
         </span>
-      )}
 
-      {blockedBy.length > 0 && (
-        <span className="mt-2 block border-t border-white/5 pt-2">
-          <span className="block font-mono text-[9px] uppercase tracking-widest text-amber-300/70">
-            Waiting on
-          </span>
-          {blockedBy.map((id) => (
-            <span
-              key={id}
-              className="mt-0.5 block truncate text-[10px] text-slate-400"
-            >
-              {roadmap.byId.get(id)?.node.title ?? "unknown"}
+        <span className="mt-1.5 block text-sm font-medium leading-snug text-white">
+          {node.title}
+        </span>
+
+        <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-slate-500">
+          {node.summary}
+        </span>
+
+        {node.target_date && (
+          <span
+            className={`mt-2 flex items-center gap-1.5 font-mono text-[10px] ${
+              overdue ? "text-rose-300" : "text-slate-500"
+            }`}
+          >
+            <span aria-hidden>{overdue ? "⚠" : "◷"}</span>
+            {node.target_date}
+            <span className={overdue ? "text-rose-400/70" : "text-slate-600"}>
+              {relativeDate(node.target_date)}
             </span>
-          ))}
-        </span>
-      )}
+          </span>
+        )}
 
-      {blocking.length > 0 && (
-        <span className="mt-1.5 block font-mono text-[9px] text-slate-600">
-          blocks {blocking.length}{" "}
-          {blocking.length === 1 ? "other" : "others"}
-        </span>
-      )}
-    </button>
+        {blockedBy.length > 0 && (
+          <span className="mt-2 block border-t border-white/5 pt-2">
+            <span className="block font-mono text-[9px] uppercase tracking-widest text-amber-300/70">
+              Waiting on
+            </span>
+            {blockedBy.map((id) => (
+              <span
+                key={id}
+                className="mt-0.5 block truncate text-[10px] text-slate-400"
+              >
+                {roadmap.byId.get(id)?.node.title ?? "unknown"}
+              </span>
+            ))}
+          </span>
+        )}
+
+        {blocking.length > 0 && (
+          <span className="mt-1.5 block font-mono text-[9px] text-slate-600">
+            blocks {blocking.length}{" "}
+            {blocking.length === 1 ? "other" : "others"}
+          </span>
+        )}
+      </button>
+
+      {/*
+        The same move, without a mouse.
+
+        Dragging is the obvious gesture and the one most people will reach for,
+        but it is unreachable by keyboard and invisible to a screen reader —
+        and this is the only control on the board that changes anything, so
+        leaving it mouse-only would put the whole write path out of reach.
+      */}
+      <label className="flex items-center gap-2 border-t border-white/5 px-3 py-2">
+        <span className="sr-only">Status for {node.title}</span>
+        <select
+          value={node.status ?? "todo"}
+          onChange={(event) => onMove(node, event.target.value as Status)}
+          className="w-full cursor-pointer rounded bg-transparent font-mono text-[10px] uppercase tracking-widest text-slate-500 outline-none transition hover:text-slate-300 focus:text-slate-200"
+        >
+          {LANES.map((lane) => (
+            <option key={lane} value={lane} className="bg-canvas text-slate-200">
+              {LANE_LABELS[lane]}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }

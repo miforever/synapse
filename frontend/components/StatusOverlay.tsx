@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Logo } from "./Logo";
 
-const MCP_COMMAND = "claude mcp add --transport http synapse http://localhost:8000/mcp";
+const MCP_COMMAND = "claude mcp add --transport http synapsse http://localhost:8000/mcp";
 
 function CopyableCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
@@ -89,12 +89,18 @@ export function StatusOverlay({
 
         {!loading && !error && empty && (
           <>
-            <p className="mt-6 text-sm text-slate-300">
-              Connected, with no memories yet.
+            <p className="mt-6 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-300/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Everything is running
+            </p>
+            <p className="mt-3 text-sm text-slate-300">
+              You have no memories yet.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              Point an agent at the daemon, then ask it to remember something.
-              Nodes appear here as they are written — no refresh.
+              The daemon is up and the canvas is talking to it — there is
+              simply nothing in the graph. Connect an agent, then ask it to
+              remember something. Memories appear here as they are written,
+              with no refresh.
             </p>
             <CopyableCommand command={MCP_COMMAND} />
             <p className="mt-2 font-mono text-[10px] text-slate-600">

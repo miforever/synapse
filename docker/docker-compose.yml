@@ -1,4 +1,4 @@
-name: synapse
+name: synapsse
 
 services:
   backend:
@@ -8,9 +8,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - synapse-data:/app/data
+      - synapsse-data:/app/data
       # Survives container recreation so the model is fetched once.
-      - synapse-models:/app/models
+      - synapsse-models:/app/models
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -33,5 +33,5 @@ services:
         condition: service_healthy
 
 volumes:
-  synapse-data:
-  synapse-models:
+  synapsse-data:
+  synapsse-models:

@@ -4,6 +4,7 @@ import type {
   NodeDetail,
   NodeSearchResult,
   SavedLayout,
+  Status,
 } from "./types";
 
 export const API_URL =
@@ -103,6 +104,29 @@ export async function attachFile(
     );
   }
   return response.json() as Promise<FileRef>;
+}
+
+/**
+ * Move a piece of work along.
+ *
+ * The canvas's first write. It goes through the same PATCH the agents use, so
+ * a status set by hand and one set by an agent are the same edit — including
+ * the broadcast, which is how every other open view finds out.
+ */
+export async function setNodeStatus(
+  nodeId: string,
+  status: Status,
+): Promise<NodeDetail> {
+  const response = await fetch(
+    `${API_URL}/nodes/${encodeURIComponent(nodeId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    },
+  );
+  if (!response.ok) throw new Error("Could not update the status");
+  return response.json() as Promise<NodeDetail>;
 }
 
 export async function detachFile(fileId: string): Promise<void> {

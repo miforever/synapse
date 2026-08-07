@@ -21,29 +21,29 @@ body {
 
 /* Markdown inside the drawer. Scoped rather than using a plugin so the type
    scale stays consistent with the rest of the interface. */
-.prose-synapse > * + * {
+.prose-synapsse > * + * {
   margin-top: 0.85em;
 }
 
-.prose-synapse h1,
-.prose-synapse h2,
-.prose-synapse h3 {
+.prose-synapsse h1,
+.prose-synapsse h2,
+.prose-synapsse h3 {
   font-weight: 600;
   color: #fafafa;
   letter-spacing: -0.01em;
 }
 
-.prose-synapse h1 {
+.prose-synapsse h1 {
   font-size: 1.05rem;
 }
-.prose-synapse h2 {
+.prose-synapsse h2 {
   font-size: 0.95rem;
 }
-.prose-synapse h3 {
+.prose-synapsse h3 {
   font-size: 0.875rem;
 }
 
-.prose-synapse code {
+.prose-synapsse code {
   font-family: var(--font-mono);
   font-size: 0.8em;
   padding: 0.1em 0.35em;
@@ -52,7 +52,7 @@ body {
   color: #e9d5ff;
 }
 
-.prose-synapse pre {
+.prose-synapsse pre {
   padding: 0.85rem;
   overflow-x: auto;
   border-radius: 0.5rem;
@@ -60,38 +60,38 @@ body {
   background: rgb(0 0 0 / 35%);
 }
 
-.prose-synapse pre code {
+.prose-synapsse pre code {
   background: none;
   padding: 0;
   color: #cbd5e1;
 }
 
-.prose-synapse ul,
-.prose-synapse ol {
+.prose-synapsse ul,
+.prose-synapsse ol {
   padding-left: 1.15rem;
 }
 
-.prose-synapse ul {
+.prose-synapsse ul {
   list-style: disc;
 }
-.prose-synapse ol {
+.prose-synapsse ol {
   list-style: decimal;
 }
 
-.prose-synapse blockquote {
+.prose-synapsse blockquote {
   padding-left: 0.85rem;
   border-left: 2px solid rgb(168 85 247 / 40%);
   color: #94a3b8;
 }
 
-.prose-synapse table {
+.prose-synapsse table {
   width: 100%;
   font-size: 0.8rem;
   border-collapse: collapse;
 }
 
-.prose-synapse th,
-.prose-synapse td {
+.prose-synapsse th,
+.prose-synapsse td {
   padding: 0.35rem 0.5rem;
   border: 1px solid rgb(255 255 255 / 8%);
   text-align: left;

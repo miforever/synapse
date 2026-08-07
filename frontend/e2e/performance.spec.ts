@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
  * SwiftShader (software WebGL); real GPUs do considerably better.
  */
 
-const MIN_FPS = Number(process.env.SYNAPSE_MIN_FPS ?? 20);
+const MIN_FPS = Number(process.env.SYNAPSSE_MIN_FPS ?? 20);
 const SAMPLE_MS = 4000;
 
 /** Counts real animation frames, which is what the user actually perceives. */
@@ -42,7 +42,7 @@ test.describe("performance at scale", () => {
   test("3D holds frame rate with the graph settled and drifting", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
 
     const nodes = await nodeCount(page);
@@ -58,9 +58,9 @@ test.describe("performance at scale", () => {
   });
 
   test("2D holds frame rate", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
-    await page.getByRole("button", { name: "2d", exact: true }).click();
+    await page.getByRole("link", { name: "2D", exact: true }).click();
 
     const nodes = await nodeCount(page);
     await page.waitForTimeout(6000);
@@ -72,7 +72,7 @@ test.describe("performance at scale", () => {
   });
 
   test("hovering does not stall the canvas", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     const canvas = page.locator("canvas").first();
     await expect(canvas).toBeVisible();
     await page.waitForTimeout(5000);
@@ -101,7 +101,7 @@ test.describe("performance at scale", () => {
 
   test("the initial snapshot arrives quickly", async ({ page }) => {
     const started = Date.now();
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.getByText(/memor(y|ies)/)).toBeVisible({ timeout: 20_000 });
     const elapsed = Date.now() - started;
 

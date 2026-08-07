@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  * injection — have no meaningful unit-test surface.
  *
  * Start the stack yourself, or let `webServer` boot the canvas. The daemon is
- * expected at SYNAPSE_API (default http://localhost:8000).
+ * expected at SYNAPSSE_API (default http://localhost:8000).
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -18,7 +18,7 @@ export default defineConfig({
   timeout: 60_000,
 
   use: {
-    baseURL: process.env.SYNAPSE_CANVAS ?? "http://localhost:3000",
+    baseURL: process.env.SYNAPSSE_CANVAS ?? "http://localhost:3000",
     trace: "retain-on-failure",
   },
 

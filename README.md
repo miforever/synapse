@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/branding/synapse-desktop.svg" alt="SYNAPSE" width="420">
+  <img src="frontend/public/branding/synapsse-desktop.svg" alt="SYNAPSSE" width="420">
 </p>
 
 <p align="center">
@@ -9,7 +9,7 @@
 
 ---
 
-SYNAPSE runs as a local async Python daemon over embedded SQLite, exposes
+SYNAPSSE runs as a local async Python daemon over embedded SQLite, exposes
 itself to agents through the Model Context Protocol, and renders the resulting
 memory graph as an interactive WebGL canvas. No cloud services, no database
 server, no configuration.
@@ -22,7 +22,7 @@ re-litigated — and the usual fix, replaying a transcript into the context
 window, pays for everything that was ever said to recall the one thing that
 matters now.
 
-SYNAPSE stores memories as a graph of linked nodes and hands agents a
+SYNAPSSE stores memories as a graph of linked nodes and hands agents a
 deliberately token-frugal read path: search a lightweight index, fetch only the
 node you need, then traverse outward from it. Recall costs a fraction of what
 dumping a transcript would, and what comes back is structured — a decision, its
@@ -45,7 +45,7 @@ cannot trust. Everything an agent writes appears on it as it is written.
 ## Layout
 
 ```
-synapse/
+synapsse/
 ├── backend/    FastAPI + aiosqlite + FastMCP daemon
 ├── frontend/   Next.js + react-force-graph canvas
 └── docker/     Dockerfiles and compose stack
@@ -72,9 +72,9 @@ cd frontend && npm install && npm run dev
 The first start fetches the embedding model (~2.2GB) before semantic search
 answers; keyword search works immediately, and the download happens once.
 
-Under Docker the database persists in the `synapse-data` volume; natively it
-lands at `backend/synapse.db`, with attachments beside it in
-`backend/synapse_files/`. The two are one store — back up or move them
+Under Docker the database persists in the `synapsse-data` volume; natively it
+lands at `backend/synapsse.db`, with attachments beside it in
+`backend/synapsse_files/`. The two are one store — back up or move them
 together.
 
 ## Connect an agent
@@ -84,7 +84,7 @@ With the daemon running, point any MCP client at `http://localhost:8000/mcp`.
 **Claude Code** — one command:
 
 ```bash
-claude mcp add --transport http synapse http://localhost:8000/mcp
+claude mcp add --transport http synapsse http://localhost:8000/mcp
 ```
 
 Or commit it to the project by writing `.mcp.json`:
@@ -92,7 +92,7 @@ Or commit it to the project by writing `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "synapse": {
+    "synapsse": {
       "type": "http",
       "url": "http://localhost:8000/mcp"
     }
@@ -219,8 +219,8 @@ is fetched once and then works offline — memory content is never sent
 anywhere. It is retrieval-tuned and covers 100+ languages, so notes are
 searchable in whatever language they were written.
 
-Point `SYNAPSE_EMBEDDING_MODEL` at any fastembed-supported model to trade size
-for quality; set `SYNAPSE_EMBEDDING_DIM` to match and re-run the backfill:
+Point `SYNAPSSE_EMBEDDING_MODEL` at any fastembed-supported model to trade size
+for quality; set `SYNAPSSE_EMBEDDING_DIM` to match and re-run the backfill:
 
 ```bash
 uv run python -m app.cli.reindex
@@ -254,14 +254,14 @@ re-downloading the graph.
 
 Everything has a working default. Three layers, each overriding the one before:
 the built-in defaults, then `config.json` in the working directory, then
-`SYNAPSE_*` environment variables — the file for what you keep, the environment
+`SYNAPSSE_*` environment variables — the file for what you keep, the environment
 for a particular run.
 
 ```jsonc
 // backend/config.json — see config.example.json
 {
-  "db_path": "synapse.db",
-  "files_path": "synapse_files",
+  "db_path": "synapsse.db",
+  "files_path": "synapsse_files",
   "max_file_bytes": 52428800,
   "host": "127.0.0.1",
   "port": 8000,
@@ -311,4 +311,14 @@ Issues and pull requests are welcome. A few things that will make review quick:
 
 ## License
 
-[MIT](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE) — free for any noncommercial purpose:
+personal use, study, hobby projects, research, and use by charities, schools
+and public institutions. You may read it, run it, change it and share your
+changes, provided the notices travel with it.
+
+Commercial use is not granted by this licence. If you want it for a business,
+open an issue.
+
+Note on wording: this is **source-available**, not open source in the OSI
+sense — the definition does not permit a restriction on the field of use. It
+is deliberate, and the distinction is worth being accurate about.

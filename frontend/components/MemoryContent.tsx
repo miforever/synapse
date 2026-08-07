@@ -90,10 +90,11 @@ export function MemoryContent({
   files = [],
   sources = [],
 }: Props) {
-  const allowSource = (src: string) => media.remote_sources || !isExternal(src);
+  // Anything the daemon serves is ours; anything else waits for consent.
+  const allowSource = (src: string) => media.remote_content || !isExternal(src);
 
   return (
-    <div className="prose-synapse text-sm leading-relaxed text-slate-300">
+    <div className="prose-synapsse text-sm leading-relaxed text-slate-300">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         /*
@@ -147,7 +148,6 @@ export function MemoryContent({
             }
 
             if (kind === "audio") {
-              if (!media.audio) return <Placeholder label="audio" href={url} />;
               return (
                 <Deferred
                   label="audio"
@@ -162,7 +162,6 @@ export function MemoryContent({
             }
 
             if (kind === "video") {
-              if (!media.video) return <Placeholder label="video" href={url} />;
               return (
                 <Deferred
                   label="video"
@@ -178,8 +177,6 @@ export function MemoryContent({
                 />
               );
             }
-
-            if (!media.images) return <Placeholder label="image" href={url} />;
 
             // next/image is not usable here: memory content can reference any
             // host, and remote patterns cannot be whitelisted ahead of time.

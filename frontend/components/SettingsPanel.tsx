@@ -5,6 +5,8 @@ import type { MediaSettings } from "@/lib/types";
 
 interface Props {
   open: boolean;
+  /** Grows upward, for a control anchored to the bottom of the window. */
+  above?: boolean;
   media: MediaSettings;
   onMediaChange: (media: Partial<MediaSettings>) => void;
   motion: boolean;
@@ -70,6 +72,7 @@ function Switch({
  */
 export function SettingsPanel({
   open,
+  above = false,
   media,
   onMediaChange,
   motion: motionOn,
@@ -91,7 +94,13 @@ export function SettingsPanel({
           transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
           className="overflow-hidden"
         >
-          <div className="mt-3 w-72 border-t border-white/10 pt-2">
+          <div
+            className={`w-72 ${
+              above
+                ? "mb-3 border-b border-white/10 pb-2"
+                : "mt-3 border-t border-white/10 pt-2"
+            }`}
+          >
             <p className="px-2 pb-1 pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
               Canvas
             </p>
@@ -135,31 +144,13 @@ export function SettingsPanel({
             </button>
 
             <p className="mt-2 px-2 pb-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
-              Media in memories
+              Content
             </p>
             <Switch
-              label="Images"
-              hint="Render pictures inside memory content"
-              checked={media.images}
-              onChange={(images) => onMediaChange({ images })}
-            />
-            <Switch
-              label="Audio"
-              hint="Show a player instead of a link"
-              checked={media.audio}
-              onChange={(audio) => onMediaChange({ audio })}
-            />
-            <Switch
-              label="Video"
-              hint="Show a player instead of a link"
-              checked={media.video}
-              onChange={(video) => onMediaChange({ video })}
-            />
-            <Switch
-              label="Remote sources"
-              hint="Allow loading from other sites. Memories are written by agents, so this stays off until you allow it."
-              checked={media.remote_sources}
-              onChange={(remote_sources) => onMediaChange({ remote_sources })}
+              label="Remote content"
+              hint="Load pictures, audio and video that memories point at on other sites. Memories are written by agents, so this stays off until you allow it. Files you attach are always shown."
+              checked={media.remote_content}
+              onChange={(remote_content) => onMediaChange({ remote_content })}
             />
           </div>
         </motion.div>

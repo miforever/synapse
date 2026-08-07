@@ -2,13 +2,13 @@ import { expect, test } from "@playwright/test";
 
 async function camera(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
-    const raw = localStorage.getItem("synapse.camera.v1");
+    const raw = localStorage.getItem("synapsse.camera.v1");
     return raw ? JSON.parse(raw) : null;
   });
 }
 
 test("the camera survives a mode switch and a reload", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/canvas/3d");
   await expect(page.locator("canvas").first()).toBeVisible();
   await page.waitForTimeout(9000);
 
@@ -20,7 +20,7 @@ test("the camera survives a mode switch and a reload", async ({ page }) => {
   const after3d = await camera(page);
   expect(after3d["3d"].position).toBeTruthy();
 
-  await page.getByRole("button", { name: "2d", exact: true }).click();
+  await page.getByRole("link", { name: "2D", exact: true }).click();
   await page.waitForTimeout(4000);
   await page.mouse.wheel(0, -300);
   await page.waitForTimeout(2500);
@@ -43,7 +43,7 @@ test("the camera survives a mode switch and a reload", async ({ page }) => {
   );
 
   // Back to 3D: it must return to where it was, not reframe from scratch.
-  await page.getByRole("button", { name: "3d", exact: true }).click();
+  await page.getByRole("link", { name: "3D", exact: true }).click();
   await page.waitForTimeout(2500);
   const back = await camera(page);
   const drift = Math.abs(
@@ -53,7 +53,7 @@ test("the camera survives a mode switch and a reload", async ({ page }) => {
 
   const zoom2d = both["2d"].zoom;
   await page.reload();
-  await page.getByRole("button", { name: "2d", exact: true }).click();
+  await page.getByRole("link", { name: "2D", exact: true }).click();
   await page.waitForTimeout(3000);
   const reloaded = await camera(page);
   expect(reloaded["2d"].zoom).toBeCloseTo(zoom2d, 1);

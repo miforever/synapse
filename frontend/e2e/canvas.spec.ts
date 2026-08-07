@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-const API = process.env.SYNAPSE_API ?? "http://localhost:8000";
+const API = process.env.SYNAPSSE_API ?? "http://localhost:8000";
 
 test.describe("canvas", () => {
   test("loads the graph and reports its size", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
 
     // The control bar count is driven by the loaded snapshot.
     const count = page.getByTestId("memory-count");
@@ -13,7 +13,7 @@ test.describe("canvas", () => {
   });
 
   test("renders a WebGL canvas", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     const canvas = page.locator("canvas").first();
     await expect(canvas).toBeVisible();
 
@@ -24,13 +24,13 @@ test.describe("canvas", () => {
   });
 
   test("switches between 3D and 2D", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "2d", exact: true }).click();
+    await page.getByRole("link", { name: "2D", exact: true }).click();
     await expect(page.locator("canvas").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "3d", exact: true }).click();
+    await page.getByRole("link", { name: "3D", exact: true }).click();
     await expect(page.locator("canvas").first()).toBeVisible();
   });
 
@@ -39,7 +39,7 @@ test.describe("canvas", () => {
     const title: string = seeded.nodes[0].title;
     const prefix = title.split(" ")[0].slice(0, 4);
 
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await page.getByLabel("Search memories").fill(prefix);
 
     const results = page.locator("ul >> button");
@@ -47,7 +47,7 @@ test.describe("canvas", () => {
   });
 
   test("search survives hostile input", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     const box = page.getByLabel("Search memories");
 
     for (const hostile of ['"', "AND", "*", "a:b", "((("]) {
@@ -60,7 +60,7 @@ test.describe("canvas", () => {
   });
 
   test("a class filter narrows what is shown", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
 
     const chip = page.locator("button", { hasText: /^Idea$|^Fact$|^Person$/ }).first();
@@ -73,7 +73,7 @@ test.describe("canvas", () => {
     const graph = await fetch(`${API}/graph`).then((r) => r.json());
     const node = graph.nodes[0];
 
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     // Reaching a specific node by canvas coordinates is brittle, so drive the
     // same path the search results use.
     await page.getByLabel("Search memories").fill(node.title.slice(0, 6));
@@ -84,7 +84,7 @@ test.describe("canvas", () => {
   });
 
   test("the graph and its controls stay live", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
 
     const graph = await fetch(`${API}/graph`).then((r) => r.json());

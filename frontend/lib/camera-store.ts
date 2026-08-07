@@ -28,7 +28,7 @@ export interface CameraState {
 }
 
 /** Versioned, so a change to the shape cannot resurrect a camera it cannot read. */
-const KEY = "synapse.camera.v1";
+const KEY = "synapsse.camera.v1";
 
 type Stored = Record<string, CameraState>;
 

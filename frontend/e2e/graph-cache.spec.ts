@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const API = process.env.SYNAPSE_API ?? "http://localhost:8000";
+const API = process.env.SYNAPSSE_API ?? "http://localhost:8000";
 
 /**
  * The canvas caches the graph and asks the daemon only what changed. The risk
@@ -15,7 +15,7 @@ test.describe("graph cache", () => {
       if (r.url().includes("/graph")) requests.push(r.url());
     });
 
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.getByTestId("memory-count")).toBeVisible();
     await page.waitForTimeout(3000);
     expect(requests.some((url) => !url.includes("since="))).toBe(true);
@@ -34,7 +34,7 @@ test.describe("graph cache", () => {
     // Straight against the daemon: the canvas would hear a deletion over the
     // socket, and what is under test here is what a client that was *not*
     // listening gets told when it comes back.
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.getByTestId("memory-count")).toBeVisible();
 
     const full = await fetch(`${API}/graph`).then((r) => r.json());
@@ -51,7 +51,7 @@ test.describe("graph cache", () => {
   });
 
   test("a cached canvas is corrected rather than trusted", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.getByTestId("memory-count")).toBeVisible();
     await page.waitForTimeout(3000);
     const count = Number(await page.getByTestId("memory-count").textContent());

@@ -18,7 +18,7 @@ export function Logo({ size = 44, showTagline = true }: Props) {
     <span className="inline-flex items-center gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/branding/synapse-mark.svg"
+        src="/branding/synapsse-mark.svg"
         alt=""
         width={size}
         height={size}
@@ -29,7 +29,7 @@ export function Logo({ size = 44, showTagline = true }: Props) {
           className="font-display font-bold leading-none tracking-[0.12em] text-white"
           style={{ fontSize: size * 0.5 }}
         >
-          SYNAPSE
+          SYNAPSSE
         </span>
         {showTagline && (
           <span

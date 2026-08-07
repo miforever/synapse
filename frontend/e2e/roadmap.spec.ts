@@ -155,9 +155,9 @@ test.describe("the roadmap page", () => {
   test("shows the work in the graph, and opens a memory from it", async ({
     page,
   }) => {
-    await page.goto("/roadmap");
+    await page.goto("/roadmap/path");
 
-    const count = page.getByTestId("roadmap-count");
+    const count = page.getByTestId("memory-count");
     await expect(count).toBeVisible();
     expect(Number(await count.textContent())).toBeGreaterThan(0);
 
@@ -176,13 +176,95 @@ test.describe("the roadmap page", () => {
   });
 
   test("the canvas links to it and back", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/canvas/3d");
     await expect(page.locator("canvas").first()).toBeVisible();
 
     await page.getByRole("link", { name: "Roadmap" }).click();
-    await expect(page.getByTestId("roadmap-count")).toBeVisible();
+    await expect(page.getByTestId("memory-count")).toBeVisible();
 
-    await page.getByRole("link", { name: /Canvas/ }).click();
+    await page.getByRole("link", { name: "Canvas" }).click();
     await expect(page.locator("canvas").first()).toBeVisible();
+  });
+});
+
+test.describe("moving work", () => {
+  const API = process.env.SYNAPSSE_API ?? "http://localhost:8000";
+
+  async function statusOf(id: string) {
+    const graph = await fetch(`${API}/graph`).then((r) => r.json());
+    return graph.nodes.find((n: { id: string }) => n.id === id)?.status;
+  }
+
+  test("the status control writes through to the daemon", async ({ page }) => {
+    await page.goto("/roadmap/path");
+    await expect(page.getByTestId("memory-count")).toBeVisible();
+
+    // The keyboard path, which is also the one a screen reader has.
+    const card = page.locator("ul li").filter({ has: page.locator("select") }).first();
+    const title = await card.locator("span.font-medium").first().textContent();
+    const select = card.locator("select");
+    const before = await select.inputValue();
+    const after = before === "todo" ? "doing" : "todo";
+
+    await select.selectOption(after);
+    await page.waitForTimeout(800);
+
+    const graph = await fetch(`${API}/graph`).then((r) => r.json());
+    const stored = graph.nodes.find(
+      (n: { title: string }) => n.title === title?.trim(),
+    );
+    expect(stored.status).toBe(after);
+
+    // Put it back, so the test leaves the graph as it found it.
+    await page
+      .locator("ul li")
+      .filter({ hasText: title!.trim() })
+      .locator("select")
+      .selectOption(before);
+    await page.waitForTimeout(600);
+    expect(await statusOf(stored.id)).toBe(before);
+  });
+
+  test("a move survives a reload", async ({ page }) => {
+    await page.goto("/roadmap/path");
+    await expect(page.getByTestId("memory-count")).toBeVisible();
+
+    const card = page.locator("ul li").filter({ has: page.locator("select") }).first();
+    const title = (await card.locator("span.font-medium").first().textContent())!.trim();
+    const before = await card.locator("select").inputValue();
+    const after = before === "done" ? "doing" : "done";
+
+    await card.locator("select").selectOption(after);
+    await page.waitForTimeout(800);
+
+    await page.reload();
+    await expect(page.getByTestId("memory-count")).toBeVisible();
+    const reloaded = page.locator("ul li").filter({ hasText: title }).first();
+    expect(await reloaded.locator("select").inputValue()).toBe(after);
+
+    await reloaded.locator("select").selectOption(before);
+    await page.waitForTimeout(600);
+  });
+
+  test("dragging a card to another lane moves it", async ({ page }) => {
+    await page.goto("/roadmap/path");
+    await expect(page.getByTestId("memory-count")).toBeVisible();
+
+    const card = page.locator("ul li").filter({ has: page.locator("select") }).first();
+    const title = (await card.locator("span.font-medium").first().textContent())!.trim();
+    const before = await card.locator("select").inputValue();
+    const target = before === "dropped" ? "Done" : "Dropped";
+    const targetStatus = target.toLowerCase();
+
+    await card.dragTo(
+      page.locator("section").filter({ has: page.getByRole("heading", { name: target }) }),
+    );
+    await page.waitForTimeout(800);
+
+    const moved = page.locator("ul li").filter({ hasText: title }).first();
+    expect(await moved.locator("select").inputValue()).toBe(targetStatus);
+
+    await moved.locator("select").selectOption(before);
+    await page.waitForTimeout(600);
   });
 });

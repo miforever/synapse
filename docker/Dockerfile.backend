@@ -14,7 +14,7 @@ RUN uv sync --no-dev
 
 EXPOSE 8000
 VOLUME ["/app/data", "/app/models"]
-ENV SYNAPSE_DB_PATH=/app/data/synapse.db
+ENV SYNAPSSE_DB_PATH=/app/data/synapsse.db
 # Cache the embedding model on a volume: it is ~2.2GB and would otherwise be
 # re-downloaded every time the container is recreated.
 ENV FASTEMBED_CACHE_PATH=/app/models

@@ -173,12 +173,12 @@ export function NodeDrawer({
    * The memory's own thumbnail if it has one, otherwise its first attached
    * image — attaching a screenshot is the common way a memory acquires a
    * picture, and it would be odd for that to show in the file list but not at
-   * the top. Remote thumbnails stay behind the media setting; an attachment
-   * is served by the daemon itself, so it is not remote content.
+   * the top. A thumbnail_url points somewhere on the internet so it waits for
+   * consent; an attachment is served by the daemon itself, so it never does.
    */
   const attachedImage = files.find((file) => isImage(file));
   const cover =
-    (media.images && media.remote_sources && node?.thumbnail_url) ||
+    (media.remote_content && node?.thumbnail_url) ||
     (attachedImage ? fileUrl(attachedImage) : null);
 
   return (

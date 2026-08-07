@@ -15,8 +15,8 @@
 import type { FileRef, SourceRef } from "./types";
 
 /** The schemes a resolved mention carries, recognised by the renderer. */
-export const FILE_SCHEME = "synapse-file:";
-export const SOURCE_SCHEME = "synapse-source:";
+export const FILE_SCHEME = "synapsse-file:";
+export const SOURCE_SCHEME = "synapsse-source:";
 
 const MENTION = /\[\[file:([^\]]+)\]\]/g;
 

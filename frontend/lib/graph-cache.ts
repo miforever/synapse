@@ -15,7 +15,7 @@
 
 import type { GraphSnapshot } from "./types";
 
-const DB_NAME = "synapse";
+const DB_NAME = "synapsse";
 const STORE = "graph";
 /** Bumped when the cached shape changes, so an old entry is ignored. */
 const VERSION = 1;

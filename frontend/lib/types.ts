@@ -84,10 +84,14 @@ export interface NodeSearchResult {
 
 /** Mirrors app/models/settings.py — the user's rendering preferences. */
 export interface MediaSettings {
-  images: boolean;
-  audio: boolean;
-  video: boolean;
-  remote_sources: boolean;
+  /**
+   * Whether the canvas will fetch what memory content points at.
+   *
+   * One switch about origin rather than four about file type: a memory can
+   * name any URL, so rendering it means this machine fetches from whatever
+   * host an agent wrote down. Files the daemon serves are never gated by it.
+   */
+  remote_content: boolean;
 }
 
 export interface AppSettings {
