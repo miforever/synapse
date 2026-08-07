@@ -1,6 +1,7 @@
 "use client";
 
 import type { SourceRef } from "@/lib/types";
+import { DrawerSection } from "./DrawerSection";
 
 /**
  * The memory's citations, gathered at the foot of what it says.
@@ -11,14 +12,7 @@ import type { SourceRef } from "@/lib/types";
  */
 export function SourceList({ sources }: { sources: readonly SourceRef[] }) {
   return (
-    <section className="mt-5 border-t border-white/10 pt-5">
-      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
-        Sources
-        <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-slate-300">
-          {sources.length}
-        </span>
-      </p>
-
+    <DrawerSection title="Sources" count={sources.length}>
       <ol className="mt-2 space-y-1">
         {sources.map((source) => (
           <li key={source.id}>
@@ -51,6 +45,6 @@ export function SourceList({ sources }: { sources: readonly SourceRef[] }) {
           </li>
         ))}
       </ol>
-    </section>
+    </DrawerSection>
   );
 }

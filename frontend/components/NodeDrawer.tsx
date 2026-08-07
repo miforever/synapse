@@ -1,9 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { attachFile, detachFile, fetchNode, fileUrl } from "@/lib/api";
+import { isImage } from "@/lib/files";
 import { colorForClass, labelForClass } from "@/lib/node-classes";
 import type {
   FileRef,
@@ -13,7 +14,6 @@ import type {
   NodeDetail,
 } from "@/lib/types";
 import { endpointId } from "@/lib/types";
-import { isImage } from "./FileChip";
 import { FileList } from "./FileList";
 import { SourceList } from "./SourceList";
 import { MemoryContent } from "./MemoryContent";
@@ -48,6 +48,8 @@ export function NodeDrawer({
   const [dropping, setDropping] = useState(false);
   /** Set once a cover image turns out to be too small to be worth showing. */
   const [coverTooSmall, setCoverTooSmall] = useState(false);
+  /** Which memory is currently on screen, as opposed to being re-read. */
+  const shownId = useRef<string | null>(null);
 
   /**
    * Attach whatever was dropped.
@@ -97,23 +99,54 @@ export function NodeDrawer({
         ? { ...current, files: current.files.filter((f) => f.id !== file.id) }
         : current,
     );
-    await detachFile(file.id).catch(() =>
-      setUploadError(`Could not remove ${file.name}`),
-    );
+
+    try {
+      await detachFile(file.id);
+    } catch {
+      // Put it back. Showing an attachment as gone while it is still on the
+      // daemon is worse than the delay this avoided.
+      setUploadError(`Could not remove ${file.name}`);
+      setDetail((current) =>
+        current && !current.files.some((f) => f.id === file.id)
+          ? { ...current, files: [...current.files, file] }
+          : current,
+      );
+    }
   }, []);
 
+  /**
+   * Load the open memory, and reload it when the daemon says it changed.
+   *
+   * The node object's identity changes on every update — an agent editing it,
+   * or an attachment of our own — so this runs again each time. It only clears
+   * what is on screen when a *different* memory is being opened: blanking a
+   * memory you are reading back to "loading…" because a file was just attached
+   * to it makes an addition look like a reset.
+   */
+  const openId = node?.id;
   useEffect(() => {
     if (!node) return;
 
-    setDetail(null);
-    setCoverTooSmall(false);
+    const switching = shownId.current !== node.id;
+    if (switching) {
+      setDetail(null);
+      setCoverTooSmall(false);
+      shownId.current = node.id;
+    }
+
     const controller = new AbortController();
     fetchNode(node.id, controller.signal)
       .then(setDetail)
-      .catch(() => setDetail(null));
+      .catch(() => {
+        // Leave whatever is on screen: a failed refresh of a memory that is
+        // already open should not empty the panel.
+        if (switching) setDetail(null);
+      });
 
     return () => controller.abort();
-  }, [node]);
+    // openId participates so that opening a different memory is distinguished
+    // from the same one changing under us.
+  }, [node, openId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

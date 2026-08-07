@@ -1,3 +1,10 @@
+"""What a memory carries: the files attached to it and the sources it cites.
+
+Both are edits to a memory as far as anyone watching is concerned, so every
+route here ends the same way — by re-reading the node and broadcasting it, so
+open canvases redraw it exactly as they would for a change to its text.
+"""
+
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
@@ -12,12 +19,27 @@ from app.ws.events import broadcast_node_updated
 router = APIRouter(tags=["attachments"])
 
 
+async def _require_node(node_id: str) -> None:
+    if await nodes_service.get_node(db.conn, node_id) is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+
+async def _announce(node_id: str) -> None:
+    """Tell every open canvas the memory changed.
+
+    Re-read rather than passed in: the caller holds the file or source it just
+    wrote, not the memory carrying it, and a broadcast of a stale node would
+    have canvases redraw without the very thing that prompted it.
+    """
+    node = await nodes_service.get_node(db.conn, node_id)
+    if node is not None:
+        await broadcast_node_updated(node)
+
+
 @router.post("/nodes/{node_id}/files", status_code=201)
 async def attach_file(node_id: str, upload: UploadFile) -> FileOut:
     """Attach a file to a memory, keeping a copy in the daemon's own store."""
-    node = await nodes_service.get_node(db.conn, node_id)
-    if node is None:
-        raise HTTPException(status_code=404, detail="Node not found")
+    await _require_node(node_id)
 
     try:
         attached = await files_service.attach_bytes(
@@ -32,11 +54,7 @@ async def attach_file(node_id: str, upload: UploadFile) -> FileOut:
         # than this daemon is willing to store.
         raise HTTPException(status_code=413, detail=str(too_large)) from too_large
 
-    # Every open canvas redraws the memory with its new attachment, the same
-    # way it would for any other edit.
-    updated = await nodes_service.get_node(db.conn, node_id)
-    if updated is not None:
-        await broadcast_node_updated(updated)
+    await _announce(node_id)
     return attached
 
 
@@ -64,16 +82,13 @@ async def remove_file(file_id: str) -> None:
     if record is None or not await files_service.delete_file(db.conn, file_id):
         raise HTTPException(status_code=404, detail="File not found")
 
-    node = await nodes_service.get_node(db.conn, record.node_id)
-    if node is not None:
-        await broadcast_node_updated(node)
+    await _announce(record.node_id)
 
 
 @router.post("/nodes/{node_id}/sources", status_code=201)
 async def cite_source(node_id: str, source: SourceCreate) -> SourceOut:
     """Record where a memory's claims came from."""
-    if await nodes_service.get_node(db.conn, node_id) is None:
-        raise HTTPException(status_code=404, detail="Node not found")
+    await _require_node(node_id)
 
     try:
         cited = await sources_service.cite(db.conn, node_id, source)
@@ -83,9 +98,7 @@ async def cite_source(node_id: str, source: SourceCreate) -> SourceOut:
             detail="A source must be an http(s) URL a reader can open",
         ) from bad
 
-    node = await nodes_service.get_node(db.conn, node_id)
-    if node is not None:
-        await broadcast_node_updated(node)
+    await _announce(node_id)
     return cited
 
 
@@ -95,6 +108,4 @@ async def remove_source(source_id: str) -> None:
     if record is None or not await sources_service.delete_source(db.conn, source_id):
         raise HTTPException(status_code=404, detail="Source not found")
 
-    node = await nodes_service.get_node(db.conn, record.node_id)
-    if node is not None:
-        await broadcast_node_updated(node)
+    await _announce(record.node_id)

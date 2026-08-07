@@ -235,9 +235,9 @@ function ringTexture(color: string): CanvasTexture | null {
 /**
  * How far the ring stands off the node, and how present it is.
  *
- * Close in and nearly solid. The stroke is what carries the signal, so it has
- * to be crisp — the earlier soft halo at 0.28 opacity spread the node into a
- * blur several times its own size and lost its colour inside it.
+ * Close in and nearly solid, because the stroke is what carries the signal. A
+ * wide faint one is not a ring at all: it spreads the node into a blur several
+ * times its own size and loses the node's colour inside it.
  */
 const HALO_RATIO = 1.05;
 const HALO_OPACITY = 0.9;

@@ -282,11 +282,10 @@ function GraphCanvasImpl({
   /**
    * The faint bed under a hovered connection.
    *
-   * Deliberately narrow and dim. An earlier version laid a wide blurred stroke
-   * under each lit edge, which turned a well-connected memory into a cyan
-   * starburst — the connections stopped reading as lines. This is barely wider
-   * than the line itself, just enough to separate a lit edge from the ones
-   * crossing it.
+   * Barely wider than the line and dim with it: enough to tell a lit edge from
+   * the ones crossing it, and no more. A wide blurred stroke here turns a
+   * well-connected memory into a starburst, and the connections stop reading
+   * as lines at all.
    */
   const paintLinkGlow2D = useCallback(
     (
@@ -699,10 +698,10 @@ function GraphCanvasImpl({
      * A fresh renderer brings a fresh camera, so the automatic framing is
      * ours again — until this effect hands it back below.
      *
-     * These flags are reset here rather than alongside the controls listener,
-     * which is where they used to live: that effect runs after this one, so it
-     * wiped the very state a restore had just set, and switching back to 3D
-     * reframed the graph instead of returning to where the view was left.
+     * The reset belongs here and not with the controls listener, which runs
+     * after this effect and would wipe the state a restore had just set:
+     * switching back to 3D would reframe the graph instead of returning to
+     * where the view was left.
      */
     cameraDriven.current = false;
     framed.current = false;
@@ -738,6 +737,22 @@ function GraphCanvasImpl({
     if (!graph) return;
 
     const capture = () => {
+      /*
+       * Never allowed to throw.
+       *
+       * This also runs from the cleanup, by which point the renderer may
+       * already be tearing itself down — and an exception thrown out of an
+       * effect cleanup takes the unmount with it, so a mode switch would break
+       * the canvas rather than just forgetting one camera position.
+       */
+      try {
+        captureNow();
+      } catch {
+        // Nothing to do: the position is lost, the canvas is not.
+      }
+    };
+
+    const captureNow = () => {
       if (mode === "3d") {
         const position = graph.cameraPosition?.();
         if (!position) return;

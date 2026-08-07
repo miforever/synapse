@@ -25,6 +25,18 @@ from app.ws.events import (
 logger = logging.getLogger(__name__)
 
 
+async def _announce(node_id: str) -> None:
+    """Tell every open canvas the memory changed.
+
+    Re-read rather than passed in: what a tool holds after writing is the file
+    or source, not the memory carrying it, and canvases redrawing from a stale
+    node would drop the very thing that prompted the broadcast.
+    """
+    node = await nodes_service.get_node(db.conn, node_id)
+    if node is not None:
+        await broadcast_node_updated(node)
+
+
 @mcp.tool
 async def search_index(query: str, limit: int = 5) -> list[dict[str, str]]:
     """Search memories by keyword and meaning, returning lightweight candidates.
@@ -153,9 +165,7 @@ async def attach_file(node_id: str, path: str) -> dict[str, object] | None:
     except files_service.FileTooLarge:
         return {"error": f"{path} is larger than this daemon will store"}
 
-    node = await nodes_service.get_node(db.conn, node_id)
-    if node is not None:
-        await broadcast_node_updated(node)
+    await _announce(node_id)
     return {"file": attached.model_dump(mode="json")}
 
 
@@ -189,9 +199,7 @@ async def cite_source(
     except sources_service.UnusableSource:
         return {"error": f"{url} is not an http(s) address a reader could open"}
 
-    node = await nodes_service.get_node(db.conn, node_id)
-    if node is not None:
-        await broadcast_node_updated(node)
+    await _announce(node_id)
     return {"source": cited.model_dump(mode="json")}
 
 
@@ -202,9 +210,7 @@ async def uncite_source(source_id: str) -> dict[str, object]:
     deleted = await sources_service.delete_source(db.conn, source_id)
 
     if deleted and record is not None:
-        node = await nodes_service.get_node(db.conn, record.node_id)
-        if node is not None:
-            await broadcast_node_updated(node)
+        await _announce(record.node_id)
     return {"deleted": deleted, "source_id": source_id}
 
 
@@ -215,9 +221,7 @@ async def detach_file(file_id: str) -> dict[str, object]:
     deleted = await files_service.delete_file(db.conn, file_id)
 
     if deleted and record is not None:
-        node = await nodes_service.get_node(db.conn, record.node_id)
-        if node is not None:
-            await broadcast_node_updated(node)
+        await _announce(record.node_id)
     return {"deleted": deleted, "file_id": file_id}
 
 

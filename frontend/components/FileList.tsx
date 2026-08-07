@@ -1,8 +1,9 @@
 "use client";
 
 import { fileUrl } from "@/lib/api";
+import { formatSize, isImage, kindOf } from "@/lib/files";
 import type { FileRef } from "@/lib/types";
-import { formatSize, isImage, kindOf } from "./FileChip";
+import { DrawerSection } from "./DrawerSection";
 
 interface Props {
   files: readonly FileRef[];
@@ -21,16 +22,7 @@ interface Props {
  */
 export function FileList({ files, busy, error, onRemove }: Props) {
   return (
-    <section className="mt-5 border-t border-white/10 pt-5">
-      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
-        Files
-        {files.length > 0 && (
-          <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-slate-300">
-            {files.length}
-          </span>
-        )}
-      </p>
-
+    <DrawerSection title="Files" count={files.length}>
       {files.length === 0 && !busy && (
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           Drop a file anywhere on this panel to attach it, or have an agent
@@ -83,7 +75,7 @@ export function FileList({ files, busy, error, onRemove }: Props) {
             {/*
               Only on hover: a delete control sitting permanently beside every
               attachment invites the accident it is easiest to regret, since
-              the bytes are gone with the row.
+              the bytes go with the row.
             */}
             <button
               type="button"
@@ -97,6 +89,6 @@ export function FileList({ files, busy, error, onRemove }: Props) {
           </li>
         ))}
       </ul>
-    </section>
+    </DrawerSection>
   );
 }

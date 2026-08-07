@@ -49,14 +49,20 @@ class JsonConfigSource(PydanticBaseSettingsSource):
     the variable someone set for this one run.
     """
 
+    def __init__(self, settings_cls: type[BaseSettings]) -> None:
+        super().__init__(settings_cls)
+        # Read once per load, not once per field: pydantic asks every source
+        # for every field it defines, and re-parsing the file a dozen times to
+        # build one settings object is a dozen syscalls for one answer.
+        self._values = _from_file()
+
     def get_field_value(
         self, field: FieldInfo, field_name: str
     ) -> tuple[Any, str, bool]:
-        value = _from_file().get(field_name)
-        return value, field_name, False
+        return self._values.get(field_name), field_name, False
 
     def __call__(self) -> dict[str, Any]:
-        return _from_file()
+        return self._values
 
 
 class Settings(BaseSettings):
