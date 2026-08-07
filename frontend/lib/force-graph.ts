@@ -31,12 +31,12 @@ export interface ForceGraphHandle {
   d3Force?: (name: string, force?: unknown) => unknown;
   zoomToFit?: (durationMs?: number, padding?: number) => void;
   getGraphBbox?: () => { x: [number, number]; y: [number, number]; z?: [number, number] } | null;
-  /** 3D only. */
+  /** 3D only. Called with no position it reports the camera instead of moving it. */
   cameraPosition?: (
-    position: Coords,
+    position?: Coords,
     lookAt?: Coords,
     transitionMs?: number,
-  ) => void;
+  ) => Coords | undefined;
   /** 3D only. The live three.js camera, mutated in place by the ambient orbit. */
   camera?: () => { position?: { x: number; y: number; z: number } } | undefined;
   /**
@@ -51,9 +51,13 @@ export interface ForceGraphHandle {
         removeEventListener?: (event: string, handler: () => void) => void;
       }
     | undefined;
-  /** 2D only. */
-  centerAt?: (x?: number, y?: number, durationMs?: number) => void;
-  zoom?: (scale?: number, durationMs?: number) => void;
+  /** 2D only. Both double as getters when called with no arguments. */
+  centerAt?: (
+    x?: number,
+    y?: number,
+    durationMs?: number,
+  ) => { x: number; y: number } | undefined;
+  zoom?: (scale?: number, durationMs?: number) => number | undefined;
 }
 
 /**

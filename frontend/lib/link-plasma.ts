@@ -20,7 +20,7 @@ import {
   type Object3D,
 } from "three";
 
-import { type FocusLink, isLinkLit } from "./link-focus";
+import { type FocusLink, isLinkHovered, isLinkLit } from "./link-focus";
 
 interface Endpoint {
   x?: number;
@@ -56,6 +56,15 @@ const FRAGMENT = /* glsl */ `
   varying float vFocus;
 
   void main() {
+    /*
+     * One attribute carries both directions of emphasis. Below 1 is focus
+     * receding a link into the background; above 1 is hover lifting it out.
+     * Splitting them here rather than in two attributes keeps the per-frame
+     * update on the CPU side to a single float per link.
+     */
+    float dim = min(vFocus, 1.0);
+    float glow = clamp(vFocus - 1.0, 0.0, 1.0);
+
     // Position within the travelling cycle, offset per link so the graph does
     // not pulse in unison.
     float cycle = fract(vProgress - uTime * uSpeed + vPhase);
@@ -68,10 +77,15 @@ const FRAGMENT = /* glsl */ `
     // Scaled by focus so a receded link loses its pulse as well as its line —
     // a dimmed edge with a bright spark still travelling it draws the eye
     // straight back to what is meant to be in the background.
-    float intensity = smoothstep(uWidth, 0.0, distance) * vFocus;
+    float intensity = smoothstep(uWidth, 0.0, distance) * dim;
 
-    vec3 color = mix(uColor, uPulseColor, intensity);
-    gl_FragColor = vec4(color, (uBase + intensity * (1.0 - uBase)) * vFocus);
+    // A hovered link takes on the pulse's own colour along its whole length,
+    // so the connection reads as live rather than merely brighter.
+    vec3 resting = mix(uColor, uPulseColor, glow * 0.7);
+    vec3 color = mix(resting, uPulseColor, intensity);
+
+    float alpha = (uBase + intensity * (1.0 - uBase)) * dim;
+    gl_FragColor = vec4(color, min(1.0, alpha + glow * 0.45));
   }
 `;
 
@@ -122,9 +136,13 @@ export function advancePlasma(seconds: number): void {
  */
 let focused: string | null = null;
 let neighbours: ReadonlySet<string> = new Set();
+let hovered: string | null = null;
 
 /** How much of itself a receded link keeps. Enough to read as structure. */
 const DIMMED = 0.14;
+
+/** Above 1, which the shader reads as glow rather than as brightness. */
+const HOVERED = 1.5;
 
 // Approach rate per frame. Matches the eased node focus, so lines and nodes
 // recede together instead of the graph changing in two visible stages.
@@ -138,9 +156,17 @@ export function setLinkFocus(
   neighbours = neighbourIds;
 }
 
+/** Which memory the pointer is on, lifting the edges that leave it. */
+export function setLinkHover(hoverId: string | null): void {
+  hovered = hoverId;
+}
+
 /** Full brightness unless something else is open and this edge is not part of it. */
 function targetFocus(link: FocusLink | undefined): number {
   if (!link) return 1;
+  // Hover wins over focus dimming: pointing at a receded memory is how you ask
+  // to see what it connects to, so its edges have to come back for the moment.
+  if (isLinkHovered(link, hovered)) return HOVERED;
   return isLinkLit(link, focused, neighbours) ? 1 : DIMMED;
 }
 

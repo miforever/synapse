@@ -1,0 +1,74 @@
+/**
+ * Where the user left the camera, per canvas.
+ *
+ * Kept in localStorage rather than with the daemon's saved layout. The
+ * arrangement of the graph is shared — anyone opening this memory graph should
+ * see the memories where they were put — but a viewpoint is not: it is where
+ * *this* browser was looking, and pushing it to the daemon would have one
+ * window's zoom yanking another's.
+ *
+ * The two canvases are stored separately, since a 3D camera and a 2D pan/zoom
+ * have nothing in common, and switching between them should return you to
+ * where each one was.
+ */
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface CameraState {
+  /** 3D: the camera itself, and the point it orbits. */
+  position?: Vec3;
+  target?: Vec3;
+  /** 2D: the centre of the viewport in graph coordinates, and the scale. */
+  center?: { x: number; y: number };
+  zoom?: number;
+}
+
+/** Versioned, so a change to the shape cannot resurrect a camera it cannot read. */
+const KEY = "synapse.camera.v1";
+
+type Stored = Record<string, CameraState>;
+
+function readAll(): Stored {
+  // Absent during SSR, and throws outright in a browser with storage denied.
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? (JSON.parse(raw) as Stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function loadCamera(mode: string): CameraState | null {
+  const state = readAll()[mode];
+  return state ?? null;
+}
+
+/*
+ * The last value written, so an idle canvas is not rewriting the same string
+ * every couple of seconds — the save path polls rather than hooking every
+ * camera event, because the renderers expose no single event that covers
+ * dragging, the wheel, and their own tweens alike.
+ */
+let lastWritten = "";
+
+export function saveCamera(mode: string, state: CameraState): void {
+  if (typeof localStorage === "undefined") return;
+
+  const all = readAll();
+  all[mode] = state;
+  const serialized = JSON.stringify(all);
+  if (serialized === lastWritten) return;
+
+  try {
+    localStorage.setItem(KEY, serialized);
+    lastWritten = serialized;
+  } catch {
+    // Storage full or denied. The camera is still where it is; only the
+    // memory of it across reloads is lost, which is not worth an error.
+  }
+}

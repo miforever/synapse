@@ -8,7 +8,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { isLinkLit } from "../lib/link-focus";
+import { isLinkHovered, isLinkLit } from "../lib/link-focus";
 
 const NEIGHBOURS = new Set(["b", "c"]);
 
@@ -43,5 +43,25 @@ test.describe("link focus", () => {
     expect(isLinkLit({ source: { id: "x" }, target: { id: "y" } }, "a", NEIGHBOURS)).toBe(
       false,
     );
+  });
+});
+
+test.describe("link hover", () => {
+  test("nothing is lit when the pointer is on no node", () => {
+    expect(isLinkHovered({ source: "a", target: "b" }, null)).toBe(false);
+  });
+
+  test("connections leaving the hovered memory light up", () => {
+    expect(isLinkHovered({ source: "a", target: "b" }, "a")).toBe(true);
+    expect(isLinkHovered({ source: "b", target: "a" }, "a")).toBe(true);
+    expect(isLinkHovered({ source: { id: "a" }, target: { id: "b" } }, "a")).toBe(
+      true,
+    );
+  });
+
+  test("connections between its neighbours do not", () => {
+    // Unlike focus: hover follows the pointer, so lighting a second ring of
+    // edges would spread the highlight past what is being pointed at.
+    expect(isLinkHovered({ source: "b", target: "c" }, "a")).toBe(false);
   });
 });

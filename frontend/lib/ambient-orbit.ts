@@ -111,7 +111,10 @@ const holds = new Set<string>();
 let suspendedUntil = 0;
 
 /** Stop while the user is doing something that the rotation would fight. */
-export function holdOrbit(reason: "pointer" | "hover", held: boolean): void {
+export function holdOrbit(
+  reason: "pointer" | "hover" | "drag",
+  held: boolean,
+): void {
   if (held) holds.add(reason);
   else holds.delete(reason);
 }

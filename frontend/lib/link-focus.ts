@@ -41,3 +41,19 @@ export function isLinkLit(
     (neighbours.has(source) && neighbours.has(target))
   );
 }
+
+/**
+ * Whether a connection runs out of the memory under the pointer.
+ *
+ * Hover is a lighter gesture than opening a memory: it lifts the node's own
+ * connections rather than pushing everything else back, so only the edges that
+ * actually touch it count — the neighbour-to-neighbour edges that focus keeps
+ * lit would spread the highlight past what the pointer is pointing at.
+ */
+export function isLinkHovered(
+  link: FocusLink,
+  hoverId: string | null,
+): boolean {
+  if (!hoverId) return false;
+  return endOf(link.source) === hoverId || endOf(link.target) === hoverId;
+}

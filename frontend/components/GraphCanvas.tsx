@@ -24,20 +24,32 @@ import {
   holdOrbit,
   suspendOrbit,
 } from "@/lib/ambient-orbit";
-import { isLinkLit } from "@/lib/link-focus";
+import { loadCamera, saveCamera } from "@/lib/camera-store";
+import { isLinkHovered, isLinkLit } from "@/lib/link-focus";
 import { colorForClass } from "@/lib/node-classes";
 import { endpointId, type GraphEdge, type GraphNode } from "@/lib/types";
 import { getCircularThumbnail } from "@/lib/image-cache";
-import { createDriftForce, setDriftPaused } from "@/lib/drift-force";
+import {
+  createDriftForce,
+  createGrabCalmForce,
+  setDriftPaused,
+  setGrabbing,
+} from "@/lib/drift-force";
 import {
   advancePlasma,
   buildLinkObject,
   disposePlasma,
   setLinkFocus,
+  setLinkHover,
   updateLinkObject,
 } from "@/lib/link-plasma";
 import { createLivingLinksForce } from "@/lib/living-links";
-import { applyFocus, buildNodeObject, disposeSpriteCache } from "./node-sprite";
+import {
+  applyFocus,
+  applyHover,
+  buildNodeObject,
+  disposeSpriteCache,
+} from "./node-sprite";
 
 /**
  * The renderer's own generics model nodes as open records, which does not line
@@ -64,6 +76,8 @@ interface ForceGraphProps {
   nodeVisibility?: (node: GraphNode) => boolean;
   linkVisibility?: (link: GraphEdge) => boolean;
   enableNodeDrag?: boolean;
+  /** No drag-start callback exists; this fires on every move of the drag. */
+  onNodeDrag?: (node: PositionedNode) => void;
   onNodeDragEnd?: (node: PositionedNode) => void;
   d3VelocityDecay?: number;
   d3AlphaDecay?: number;
@@ -88,6 +102,12 @@ interface ForceGraphProps {
     globalScale: number,
   ) => void;
   nodeCanvasObjectMode?: () => string;
+  linkCanvasObject?: (
+    link: GraphEdge,
+    ctx: CanvasRenderingContext2D,
+    globalScale: number,
+  ) => void;
+  linkCanvasObjectMode?: () => string;
 }
 
 /**
@@ -142,6 +162,10 @@ interface Props {
   focusId: string | null;
   /** Its direct connections, kept legible as context. */
   neighbourIds: ReadonlySet<string>;
+  /** The memory under the pointer, lit along with what it connects to. */
+  hoverId: string | null;
+  /** Its direct connections, lit with it. */
+  hoverNeighbourIds: ReadonlySet<string>;
   showThumbnails: boolean;
   /** null means no filter is active; otherwise only these ids render. */
   visibleIds: Set<string> | null;
@@ -180,6 +204,11 @@ const LINK_COLOR = "rgba(186, 200, 220, 0.55)";
 // without competing with it. Matches the 3D shader's dimming.
 const LINK_COLOR_DIMMED = "rgba(186, 200, 220, 0.08)";
 
+// The connections of the memory under the pointer, in the same cyan the
+// travelling pulses use, so a lit edge looks like the pulse has filled it.
+const LINK_COLOR_HOVER = "rgba(127, 246, 255, 0.8)";
+const LINK_GLOW = "rgba(127, 246, 255, 0.2)";
+
 /**
  * The force-graph renderer.
  *
@@ -194,6 +223,8 @@ function GraphCanvasImpl({
   height,
   focusId,
   neighbourIds,
+  hoverId,
+  hoverNeighbourIds,
   showThumbnails,
   visibleIds,
   motion,
@@ -223,8 +254,9 @@ function GraphCanvasImpl({
   );
 
   const linkWidth = useCallback(
-    (link: GraphEdge) => 0.5 + link.weight * 1.5,
-    [],
+    (link: GraphEdge) =>
+      (0.5 + link.weight * 1.5) * (isLinkHovered(link, hoverId) ? 1.5 : 1),
+    [hoverId],
   );
 
   /*
@@ -236,10 +268,56 @@ function GraphCanvasImpl({
    * the renderer's own link styling entirely.
    */
   const linkColor = useCallback(
-    (link: GraphEdge) =>
-      isLinkLit(link, focusId, neighbourIds) ? LINK_COLOR : LINK_COLOR_DIMMED,
-    [focusId, neighbourIds],
+    (link: GraphEdge) => {
+      // Hover overrides the receding, so pointing at a dimmed memory shows
+      // what it connects to instead of leaving it in the background.
+      if (isLinkHovered(link, hoverId)) return LINK_COLOR_HOVER;
+      return isLinkLit(link, focusId, neighbourIds)
+        ? LINK_COLOR
+        : LINK_COLOR_DIMMED;
+    },
+    [focusId, neighbourIds, hoverId],
   );
+
+  /**
+   * The faint bed under a hovered connection.
+   *
+   * Deliberately narrow and dim. An earlier version laid a wide blurred stroke
+   * under each lit edge, which turned a well-connected memory into a cyan
+   * starburst — the connections stopped reading as lines. This is barely wider
+   * than the line itself, just enough to separate a lit edge from the ones
+   * crossing it.
+   */
+  const paintLinkGlow2D = useCallback(
+    (
+      link: GraphEdge,
+      ctx: CanvasRenderingContext2D,
+      globalScale: number,
+    ) => {
+      if (!isLinkHovered(link, hoverId)) return;
+
+      // Endpoints are ids until the simulation swaps in the node objects.
+      const { source, target } = link;
+      if (typeof source === "string" || typeof target === "string") return;
+      const from = source as PositionedNode;
+      const to = target as PositionedNode;
+      if (from.x === undefined || to.x === undefined) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y ?? 0);
+      ctx.lineTo(to.x, to.y ?? 0);
+      ctx.strokeStyle = LINK_GLOW;
+      ctx.lineWidth = (1.5 + link.weight * 1.5) / globalScale;
+      ctx.stroke();
+      ctx.restore();
+    },
+    [hoverId],
+  );
+
+  // "before", so the renderer still draws the line and its particles on top —
+  // this pass only adds the bed underneath them.
+  const linkCanvasObjectMode = useCallback(() => "before", []);
 
   // Weight drives flow density, so strong relationships read as busier.
   const linkParticles = useCallback(
@@ -264,10 +342,32 @@ function GraphCanvasImpl({
       const focusing = focusId !== null;
       const isFocus = node.id === focusId;
       const highlighted = isFocus || neighbourIds.has(node.id);
-      const radius = isFocus ? 9 : highlighted && focusing ? 7 : 5;
+      const isHover = node.id === hoverId;
+      const lit = isHover || hoverNeighbourIds.has(node.id);
+      const baseRadius = isFocus ? 9 : highlighted && focusing ? 7 : 5;
+      /*
+       * Hover reads as size, not as brightness.
+       *
+       * A bloom bright enough to spot at a glance blows out the node's own
+       * colour, and on the paler classes it stops being a disc at all. Growing
+       * it carries the same signal at any zoom and leaves the colour intact —
+       * so the glow below is only a faint edge, enough to lift the node off
+       * the background rather than to light it.
+       *
+       * Only ever additive, so hovering the open memory cannot shrink it.
+       */
+      const radius = Math.max(baseRadius, isHover ? 7.5 : lit ? 6 : 0);
       const color = colorForClass(node.type);
 
       ctx.globalAlpha = !focusing ? 1 : isFocus ? 1 : highlighted ? 0.85 : 0.12;
+      if (lit) ctx.globalAlpha = 1;
+
+      // Not scaled by globalScale: canvas shadows ignore the transform, so
+      // this keeps the same softness at any zoom.
+      if (lit) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = isHover ? 7 : 4;
+      }
 
       const thumbnail =
         showThumbnails && node.thumbnail_url
@@ -305,13 +405,38 @@ function GraphCanvasImpl({
         }
       }
 
+      /*
+       * A crisp ring standing off the node under the pointer.
+       *
+       * This is what distinguishes the node you are actually on from the
+       * neighbours it has lit, and it does the job with a line rather than
+       * with light: hairline width, held constant in screen pixels, drawn
+       * outside the glow so it stays a clean circle instead of smearing.
+       */
+      if (isHover) {
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 4, 0, 2 * Math.PI);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.7;
+        ctx.lineWidth = 1 / globalScale;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      // The context is shared across every node in the frame, so the glow has
+      // to be cleared or every later node inherits it.
+      ctx.shadowBlur = 0;
+
       // Labels are sized in world units, proportional to the node, so text
       // and node keep their relationship at every zoom level. Sizing by
       // 1/globalScale instead pins text to a fixed pixel height, which makes
       // it tower over the nodes as soon as the view zooms in.
-      const labelled = focusing ? highlighted : globalScale > 1.2;
+      // A lit node is always named: hovering a cluster to read what is in it
+      // is most of what hovering is for.
+      const labelled = lit || (focusing ? highlighted : globalScale > 1.2);
       if (labelled) {
-        ctx.globalAlpha = focusing && !highlighted ? 0 : 1;
+        ctx.globalAlpha = focusing && !highlighted && !lit ? 0 : 1;
         // Proportional to the node, but capped in screen pixels: a small
         // graph zooms in hard, and a purely proportional label then renders
         // several times the size of the node it names.
@@ -325,7 +450,7 @@ function GraphCanvasImpl({
 
       ctx.globalAlpha = 1;
     },
-    [focusId, neighbourIds, showThumbnails],
+    [focusId, neighbourIds, hoverId, hoverNeighbourIds, showThumbnails],
   );
 
   // Filtering hides rather than removes: the simulation keeps running over
@@ -346,11 +471,28 @@ function GraphCanvasImpl({
   // Dragging a node pins it. Arranging the graph by hand is only useful if
   // the layout you make survives the next tick — and, once saved, the next
   // visit.
+  /**
+   * Calm the rest of the graph for as long as a memory is held.
+   *
+   * There is no drag-start callback, so the grab is latched on the first move
+   * of the drag instead. Cheap enough to call on every one: it is a flag
+   * assignment, and the alternative — tracking pointer events on the canvas
+   * ourselves — cannot tell a node drag from a camera drag.
+   */
+  const handleDrag = useCallback(() => {
+    setGrabbing(true);
+    holdOrbit("drag", true);
+  }, []);
+
   const handleDragEnd = useCallback(
     (node: PositionedNode) => {
       node.fx = node.x;
       node.fy = node.y;
       node.fz = node.z;
+      setGrabbing(false);
+      holdOrbit("drag", false);
+      // Let the layout absorb the drop before the scene starts turning again.
+      suspendOrbit(1200);
       onNodeMoved();
     },
     [onNodeMoved],
@@ -431,6 +573,24 @@ function GraphCanvasImpl({
    * Without an explicit fit the camera starts inside the cloud and a large
    * graph looks like a handful of stray dots.
    */
+  /**
+   * Whether the user has driven the camera themselves.
+   *
+   * Once they have, the framing below stops moving the camera: the fits are
+   * staged over the first several seconds and re-run whenever a memory
+   * arrives, so zooming in during that window — or at any point in a live
+   * graph — was answered by the camera pulling straight back out.
+   *
+   * It does not stop the fit from re-centring what the camera orbits *around*.
+   * That target is the one thing the fit owns which the user has no other way
+   * to set: skipping it outright left the scene rotating about the origin
+   * while the graph sat off to one side.
+   */
+  const cameraDriven = useRef(false);
+
+  /** Whether the scene has been framed once, which is what sets the target. */
+  const framed = useRef(false);
+
   useEffect(() => {
     if (data.nodes.length === 0) return;
 
@@ -480,6 +640,30 @@ function GraphCanvasImpl({
       if (radius <= 0) return;
 
       if (mode === "3d" && graph.cameraPosition) {
+        /*
+         * Once the camera is theirs, re-aim it and nothing else.
+         *
+         * Orbiting and zooming both work about the controls' target, so a
+         * target left at the origin has the whole scene swinging around a
+         * point off to the side of the graph. Writing the centroid straight
+         * onto it keeps rotation centred without touching where they have
+         * put the camera.
+         */
+        if (cameraDriven.current) {
+          // Only until the target has been set once. Re-centring it later
+          // would swing the view off whatever they had zoomed in on, every
+          // time a memory arrived.
+          if (framed.current) return;
+          const target = graph.controls?.()?.target;
+          if (target) {
+            target.x = cx;
+            target.y = cy;
+            target.z = cz;
+            framed.current = true;
+          }
+          return;
+        }
+
         // Half of the default 50 degree vertical field of view.
         const distance = (radius / Math.tan((25 * Math.PI) / 180)) * 1.15;
         // Let the framing land before the ambient rotation resumes nudging it.
@@ -489,7 +673,8 @@ function GraphCanvasImpl({
           { x: cx, y: cy, z: cz },
           700,
         );
-      } else {
+        framed.current = true;
+      } else if (!cameraDriven.current) {
         graph.zoomToFit?.(700, 80);
       }
     };
@@ -497,6 +682,97 @@ function GraphCanvasImpl({
     const timers = [1400, 4000, 8000].map((delay) => setTimeout(fit, delay));
     return () => timers.forEach(clearTimeout);
   }, [data.nodes.length, mode, graphRef]);
+
+  /**
+   * Put the camera back where this canvas was left.
+   *
+   * Runs per mode, so switching 2D/3D returns to that view's own last
+   * position rather than reframing from scratch, and a reload opens on the
+   * view you left. A restored camera counts as driven: the staged fits above
+   * exist to find a first framing, and there is nothing to find here.
+   */
+  useEffect(() => {
+    const graph = handle;
+    if (!graph) return;
+
+    /*
+     * A fresh renderer brings a fresh camera, so the automatic framing is
+     * ours again — until this effect hands it back below.
+     *
+     * These flags are reset here rather than alongside the controls listener,
+     * which is where they used to live: that effect runs after this one, so it
+     * wiped the very state a restore had just set, and switching back to 3D
+     * reframed the graph instead of returning to where the view was left.
+     */
+    cameraDriven.current = false;
+    framed.current = false;
+
+    const saved = loadCamera(mode);
+    if (!saved) return;
+
+    if (mode === "3d") {
+      if (!saved.position) return;
+      // No transition: this is where the view starts, not somewhere it flies.
+      graph.cameraPosition?.(saved.position, saved.target, 0);
+    } else {
+      if (!saved.center || saved.zoom === undefined) return;
+      graph.centerAt?.(saved.center.x, saved.center.y, 0);
+      graph.zoom?.(saved.zoom, 0);
+    }
+
+    cameraDriven.current = true;
+    framed.current = true;
+  }, [handle, mode]);
+
+  /**
+   * Keep that memory current.
+   *
+   * Polled rather than hooked to an event: between pointer drags, the wheel,
+   * the framing tweens and the ambient rotation there is no one callback that
+   * sees every way the camera moves. The store itself skips writes that would
+   * not change anything, so an untouched canvas costs a read every two
+   * seconds and nothing more.
+   */
+  useEffect(() => {
+    const graph = handle;
+    if (!graph) return;
+
+    const capture = () => {
+      if (mode === "3d") {
+        const position = graph.cameraPosition?.();
+        if (!position) return;
+        const target = graph.controls?.()?.target;
+        saveCamera(mode, {
+          // Copied field by field: these are live vectors the renderer keeps
+          // mutating, so storing the objects themselves would store nothing
+          // stable.
+          position: { x: position.x, y: position.y, z: position.z ?? 0 },
+          target: target && {
+            x: target.x,
+            y: target.y,
+            z: target.z,
+          },
+        });
+        return;
+      }
+
+      const center = graph.centerAt?.();
+      const zoom = graph.zoom?.();
+      if (!center || zoom === undefined) return;
+      saveCamera(mode, { center: { x: center.x, y: center.y }, zoom });
+    };
+
+    const timer = setInterval(capture, 2000);
+    window.addEventListener("pagehide", capture);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("pagehide", capture);
+      // Leaving this canvas — a mode switch, or the page going away — is
+      // exactly when the last position has to be kept.
+      capture();
+    };
+  }, [handle, mode]);
 
   // Restyles existing objects in place rather than rebuilding them, so
   // selecting a node never stutters the simulation.
@@ -517,6 +793,13 @@ function GraphCanvasImpl({
     // that already exist, and depending on the array itself would rerun this
     // on every simulation tick.
   }, [focusId, neighbourIds, mode, nodeCount]);
+
+  // The 2D canvas reads hover from the paint callbacks, which run every frame
+  // anyway; the 3D scene keeps built objects, so it has to be told.
+  useEffect(() => {
+    applyHover(hoverId, hoverNeighbourIds);
+    setLinkHover(hoverId);
+  }, [hoverId, hoverNeighbourIds, mode, nodeCount]);
 
   /**
    * One loop advances every pulse and turns the scene, rather than the
@@ -560,7 +843,12 @@ function GraphCanvasImpl({
     const controls = handle?.controls?.();
     if (!controls?.addEventListener) return;
 
-    const hold = () => holdOrbit("pointer", true);
+    const hold = () => {
+      // Fires for the wheel as well as for dragging, which is what makes a
+      // zoom count as taking the camera over.
+      cameraDriven.current = true;
+      holdOrbit("pointer", true);
+    };
     const release = () => {
       holdOrbit("pointer", false);
       suspendOrbit(1200);
@@ -602,6 +890,10 @@ function GraphCanvasImpl({
         ? createLivingLinksForce(() => linksRef.current)
         : null,
     );
+
+    // Registered whether or not motion is on: the churn it damps comes from
+    // the renderer reheating the layout for the drag, not from the drift.
+    graph.d3Force("calm", createGrabCalmForce());
   }, [motion, handle, mode, nodeCount]);
 
 
@@ -648,6 +940,7 @@ function GraphCanvasImpl({
       onNodeClick: onSelect,
       nodeVisibility,
       linkVisibility,
+      onNodeDrag: handleDrag,
       onNodeDragEnd: handleDragEnd,
     }),
     [
@@ -661,6 +954,7 @@ function GraphCanvasImpl({
       onSelect,
       nodeVisibility,
       linkVisibility,
+      handleDrag,
       handleDragEnd,
       linkColor,
     ],
@@ -698,6 +992,8 @@ function GraphCanvasImpl({
       nodeColor={nodeColor}
       nodeCanvasObject={paintNode2D}
       nodeCanvasObjectMode={() => "replace"}
+      linkCanvasObject={paintLinkGlow2D}
+      linkCanvasObjectMode={linkCanvasObjectMode}
     />
   );
 }

@@ -23,6 +23,9 @@ import type {
 import type { GraphEdge, GraphNode } from "@/lib/types";
 import { endpointId } from "@/lib/types";
 
+/** Shared empty set, so "nothing hovered" is referentially stable. */
+const NO_IDS: ReadonlySet<string> = new Set();
+
 export default function Home() {
   const container = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(container);
@@ -229,13 +232,28 @@ export default function Home() {
   const showThumbnails =
     settings.media.images && settings.media.remote_sources;
 
-  const connectionCount = useMemo(() => {
-    if (!hovered) return 0;
-    return data.links.filter(
-      (link) =>
-        endpointId(link.source) === hovered.id ||
-        endpointId(link.target) === hovered.id,
-    ).length;
+  /*
+   * What the memory under the pointer connects to.
+   *
+   * The set lights the canvas and the count goes on the hover card; both come
+   * from one pass because they are the same walk over the edges, and they must
+   * agree — a card claiming four connections beside three lit nodes reads as a
+   * bug even though multiple edges between the same pair explain it.
+   */
+  const { hoverNeighbourIds, connectionCount } = useMemo(() => {
+    if (!hovered) return { hoverNeighbourIds: NO_IDS, connectionCount: 0 };
+
+    const ids = new Set<string>();
+    let count = 0;
+    for (const link of data.links) {
+      const source = endpointId(link.source);
+      const target = endpointId(link.target);
+      if (source === hovered.id) ids.add(target);
+      else if (target === hovered.id) ids.add(source);
+      else continue;
+      count += 1;
+    }
+    return { hoverNeighbourIds: ids, connectionCount: count };
   }, [hovered, data.links]);
 
   return (
@@ -255,6 +273,8 @@ export default function Home() {
           height={height}
           focusId={selected?.id ?? null}
           neighbourIds={neighbourIds}
+          hoverId={hovered?.id ?? null}
+          hoverNeighbourIds={hoverNeighbourIds}
           showThumbnails={showThumbnails}
           visibleIds={visibleIds}
           motion={motion}

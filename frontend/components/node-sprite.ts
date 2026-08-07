@@ -23,13 +23,15 @@ import {
 } from "three";
 import SpriteText from "three-spritetext";
 
-import { glowCanvas } from "@/lib/glow";
+import { glowCanvas, ringCanvas } from "@/lib/glow";
 import { getCircularThumbnail } from "@/lib/image-cache";
 import { colorForClass } from "@/lib/node-classes";
 import type { GraphNode } from "@/lib/types";
 
 /** Built objects, so focus can restyle them without rebuilding the scene. */
 interface Entry {
+  /** The node's own container, which the hover halo is parented into. */
+  group: Group;
   sprite: Sprite;
   label: SpriteText;
   type: string;
@@ -44,6 +46,7 @@ const objects = new Map<string, Entry>();
 
 const classMaterials = new Map<string, SpriteMaterial>();
 const classTextures = new Map<string, CanvasTexture>();
+const ringTextures = new Map<string, CanvasTexture>();
 const thumbnailMaterials = new Map<string, SpriteMaterial>();
 
 const LABEL_HEIGHT = 1.7;
@@ -179,6 +182,7 @@ export function buildNodeObject(
   group.add(new Mesh(hitGeometry, hitMaterial));
 
   objects.set(node.id, {
+    group,
     sprite,
     label,
     type: node.type,
@@ -188,6 +192,55 @@ export function buildNodeObject(
   });
   return group;
 }
+
+/**
+ * The ring around whichever node the pointer is on.
+ *
+ * One sprite for the whole scene, moved into the hovered node's group rather
+ * than built per node. A ring per node would mean a material per node — the
+ * exact cost this module exists to avoid — and only ever one of them can be
+ * lit, so there is nothing to gain from the other 999.
+ */
+let halo: Sprite | null = null;
+
+function haloSprite(): Sprite {
+  if (halo) return halo;
+
+  const sprite = new Sprite(
+    new SpriteMaterial({ transparent: true, depthWrite: false, opacity: 0 }),
+  );
+  // Drawn over the node rather than behind it: the ring stands off the disc's
+  // edge, and a soft-edged disc would otherwise bleed through the stroke.
+  sprite.renderOrder = 1;
+  // Never a click target: it is wider than the node, so left raycastable it
+  // would swallow clicks aimed past it.
+  sprite.raycast = () => undefined;
+  halo = sprite;
+  return sprite;
+}
+
+/** Wraps the shared ring canvas, cached per colour like the discs. */
+function ringTexture(color: string): CanvasTexture | null {
+  const cached = ringTextures.get(color);
+  if (cached) return cached;
+
+  const canvas = ringCanvas(color);
+  if (!canvas) return null;
+
+  const texture = new CanvasTexture(canvas);
+  ringTextures.set(color, texture);
+  return texture;
+}
+
+/**
+ * How far the ring stands off the node, and how present it is.
+ *
+ * Close in and nearly solid. The stroke is what carries the signal, so it has
+ * to be crisp — the earlier soft halo at 0.28 opacity spread the node into a
+ * blur several times its own size and lost its colour inside it.
+ */
+const HALO_RATIO = 1.05;
+const HALO_OPACITY = 0.9;
 
 /**
  * Invisible, generous click target.
@@ -211,8 +264,30 @@ const BASE_SCALE = 10;
 // neighbourhood reads as a group rather than as slightly-less-dim noise.
 const NEIGHBOUR_SCALE = 13;
 const FOCUS_SCALE = 17;
+/*
+ * Hover reads as size here too, matching the 2D canvas.
+ *
+ * A sprite has no outline to thicken, so the size step has to be doing the
+ * work — the halo below is only a faint edge, and lighting the node instead
+ * would wash a pale class out to white.
+ *
+ * Still below the focus scale: hovering must not look like opening.
+ */
+const HOVER_SCALE = 13.5;
+const HOVER_NEIGHBOUR_SCALE = 12;
 const NEIGHBOUR_OPACITY = 0.85;
 const DIM_OPACITY = 0.12;
+
+/*
+ * Focus and hover are separate gestures over the same objects, so both are
+ * kept here and the styling is recomputed from the pair. Applying either one
+ * on its own would have it undo the other — hovering away from a node would
+ * reset the scale of a memory that is still open.
+ */
+let focusedId: string | null = null;
+let focusNeighbours: ReadonlySet<string> = new Set();
+let hoveredId: string | null = null;
+let hoverNeighbours: ReadonlySet<string> = new Set();
 
 /**
  * Highlight the focused memory and its neighbours, dimming the rest.
@@ -226,7 +301,29 @@ export function applyFocus(
   focusId: string | null,
   neighbours: ReadonlySet<string>,
 ): void {
-  const focusing = focusId !== null;
+  focusedId = focusId;
+  focusNeighbours = neighbours;
+  restyle();
+}
+
+/**
+ * Lift the memory under the pointer and everything it connects to.
+ *
+ * Unlike focus this dims nothing: hovering is a glance, and pushing the whole
+ * graph back every time the pointer crosses a node would make the canvas
+ * flicker between two states as you move across it.
+ */
+export function applyHover(
+  hoverId: string | null,
+  neighbours: ReadonlySet<string>,
+): void {
+  hoveredId = hoverId;
+  hoverNeighbours = neighbours;
+  restyle();
+}
+
+function restyle(): void {
+  const focusing = focusedId !== null;
   dimTarget = focusing ? DIM_OPACITY : 1;
 
   // In a large graph only the focused neighbourhood is labelled; in a small
@@ -234,27 +331,52 @@ export function applyFocus(
   const labelAll = objects.size <= LABEL_ALL_BELOW;
 
   objects.forEach((entry, id) => {
-    const isFocus = id === focusId;
-    const highlighted = isFocus || neighbours.has(id);
-    entry.label.visible = highlighted || (!focusing && labelAll);
+    const isFocus = id === focusedId;
+    const highlighted = isFocus || focusNeighbours.has(id);
+    const isHover = id === hoveredId;
+    const lit = isHover || hoverNeighbours.has(id);
 
-    if (focusing && highlighted) {
+    entry.label.visible = highlighted || lit || (!focusing && labelAll);
+
+    if (lit || (focusing && highlighted)) {
       if (!entry.bright) entry.bright = classMaterial(entry.type).clone();
       entry.sprite.material = entry.bright;
-      entry.targetOpacity = isFocus ? 1 : NEIGHBOUR_OPACITY;
+      // A hovered node reads as fully lit even where focus had receded it —
+      // that lift is the whole signal that the pointer has found something.
+      entry.targetOpacity = lit || isFocus ? 1 : NEIGHBOUR_OPACITY;
     } else {
       entry.sprite.material = classMaterial(entry.type);
       entry.targetOpacity = focusing ? DIM_OPACITY : 1;
     }
 
-    entry.targetScale = isFocus
+    const focusScale = isFocus
       ? FOCUS_SCALE
       : focusing && highlighted
         ? NEIGHBOUR_SCALE
         : BASE_SCALE;
+    const hoverScale = isHover
+      ? HOVER_SCALE
+      : lit
+        ? HOVER_NEIGHBOUR_SCALE
+        : BASE_SCALE;
+    // The larger of the two, so hovering the open memory cannot shrink it.
+    entry.targetScale = Math.max(focusScale, hoverScale);
 
-    entry.targetLabelOpacity = !focusing || highlighted ? 1 : DIM_OPACITY;
+    entry.targetLabelOpacity = lit || !focusing || highlighted ? 1 : DIM_OPACITY;
   });
+
+  const hovered = hoveredId ? objects.get(hoveredId) : undefined;
+  if (hovered) {
+    const sprite = haloSprite();
+    sprite.material.map = ringTexture(colorForClass(hovered.type));
+    sprite.material.needsUpdate = true;
+    // Parenting to the group rather than tracking the node's position: the
+    // simulation moves the group every tick, and the halo comes along for free.
+    hovered.group.add(sprite);
+    haloTarget = HALO_OPACITY;
+  } else {
+    haloTarget = 0;
+  }
 
   startFocusTween();
 }
@@ -270,6 +392,7 @@ const EASE = 0.18;
 const EPSILON = 0.01;
 
 let dimTarget = 1;
+let haloTarget = 0;
 let tweening = false;
 
 function startFocusTween(): void {
@@ -308,6 +431,23 @@ function startFocusTween(): void {
       entry.label.material.opacity = nextLabel;
     });
 
+    if (halo) {
+      const opacity = halo.material.opacity;
+      const next = opacity + (haloTarget - opacity) * EASE;
+      if (Math.abs(haloTarget - next) > EPSILON) settled = false;
+      halo.material.opacity = next;
+
+      // Sized off the node it is behind, so it grows with the hover lift
+      // instead of arriving at its final size before the node gets there.
+      const host = hoveredId ? objects.get(hoveredId) : undefined;
+      const spread = (host?.sprite.scale.x ?? BASE_SCALE) * HALO_RATIO;
+      halo.scale.set(spread, spread, 1);
+
+      // Faded out: unparent it rather than leave an invisible quad in the
+      // scene for the renderer to keep sorting every frame.
+      if (next <= EPSILON && haloTarget === 0) halo.removeFromParent();
+    }
+
     if (settled) {
       tweening = false;
       return;
@@ -322,13 +462,18 @@ function startFocusTween(): void {
 export function disposeSpriteCache(): void {
   classMaterials.forEach((material) => material.dispose());
   classTextures.forEach((texture) => texture.dispose());
+  ringTextures.forEach((texture) => texture.dispose());
   thumbnailMaterials.forEach((material) => {
     material.map?.dispose();
     material.dispose();
   });
   objects.forEach((entry) => entry.bright?.dispose());
+  halo?.removeFromParent();
+  halo?.material.dispose();
+  halo = null;
   objects.clear();
   classMaterials.clear();
   classTextures.clear();
+  ringTextures.clear();
   thumbnailMaterials.clear();
 }
