@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import type { CanvasMode } from "./GraphCanvas";
@@ -114,6 +115,17 @@ export function ControlBar({
             </button>
           ))}
         </div>
+
+        <span className="h-5 w-px bg-white/10" />
+
+        {/* The same memories, seen as work. */}
+        <Link
+          href="/roadmap"
+          title="Roadmap"
+          className="rounded-md px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-500 transition hover:bg-white/5 hover:text-slate-300"
+        >
+          Roadmap
+        </Link>
 
         <span className="h-5 w-px bg-white/10" />
 

@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS nodes (
     content TEXT NOT NULL DEFAULT '',
     thumbnail_url TEXT,
     metadata TEXT NOT NULL DEFAULT '{{}}',
+    -- Where a piece of work stands, and when it is meant to land. Both are
+    -- optional and both are free of meaning for most memories: a fact is not
+    -- "todo". They live on the node rather than as edges to state nodes
+    -- because they are properties of the thing, not relationships it has —
+    -- and a graph where every plan sprouts an edge to a shared "done" node
+    -- is a graph with one enormous hub in the middle of it.
+    --
+    -- Deliberately no CHECK constraint on status. The set is enforced in the
+    -- models, where a bad value produces a clear error instead of an opaque
+    -- IntegrityError, and where it stays identical between a database created
+    -- fresh and one migrated by ALTER TABLE, which cannot add constraints.
+    status TEXT,
+    target_date TEXT,
     created_at TEXT NOT NULL DEFAULT {_NOW},
     updated_at TEXT NOT NULL DEFAULT {_NOW}
 );
@@ -159,6 +172,18 @@ END;
 """
 
 SCHEMA = TABLES + INDEXES + FULLTEXT
+
+# Columns added after the first release.
+#
+# `CREATE TABLE IF NOT EXISTS` leaves an existing table exactly as it is, so a
+# new column never reaches a database that already has one — every daemon
+# updated in place would keep answering without it. Each of these is applied on
+# boot and ignored when the column is already there, which is the whole of the
+# migration story a single-file local database needs.
+ADDITIONS: tuple[str, ...] = (
+    "ALTER TABLE nodes ADD COLUMN status TEXT",
+    "ALTER TABLE nodes ADD COLUMN target_date TEXT",
+)
 
 # Needs the sqlite-vec extension loaded first, so it is applied separately.
 VECTOR_TABLE = """

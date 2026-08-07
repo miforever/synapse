@@ -159,6 +159,31 @@ follows the reference implementation[[src:1]].
 A reference with nothing behind it is left visible as written — a broken
 citation is a fact about the memory worth seeing.
 
+## Roadmap
+
+A memory given a **status** — `todo`, `doing`, `done`, `dropped` — and
+optionally a **target date** becomes work, and appears on the roadmap at
+`/roadmap`. Everything else stays a note: a fact is not "todo".
+
+The board is the same graph seen differently, not a second store. Lanes come
+from status, order from the target date (dated work is a commitment and sorts
+before undated intentions), and the "waiting on" lines from the `depends_on`
+and `blocks` edges the memories already had. `relates_to` is ignored — most
+memories relate to each other, and that says nothing about sequence. Clicking a
+card opens the same drawer as the canvas, so a plan is one click from the
+decision behind it and the sources behind that.
+
+`dropped` work stays on the board rather than being deleted. What you decided
+against, and why, is worth as much later as what you did.
+
+Agents move work along as they do it:
+
+```python
+set_status(node_id, "doing")
+set_status(node_id, "done")
+read_roadmap()   # id, title, status and target date — nothing else
+```
+
 ## Agent tools
 
 Exposed over MCP:
@@ -173,6 +198,8 @@ Exposed over MCP:
 | `delete_memory(node_id)`                      | Remove a memory and every edge touching it                |
 | `link_memories(...)` / `unlink_memories(...)`  | Connect or disconnect two memories                        |
 | `attach_file(...)` / `detach_file(...)`        | Attach a file on this machine, or remove one              |
+| `set_status(...)`                              | Mark work as todo, doing, done or dropped                 |
+| `read_roadmap()`                               | Everything with a status, soonest first                   |
 | `cite_source(...)` / `uncite_source(...)`      | Record where a claim came from, or remove a citation      |
 | `list_types()` / `list_tags()`                 | Existing vocabulary, so agents reuse rather than invent   |
 
@@ -219,7 +246,9 @@ views keeps the layout you were looking at.
   are disabled entirely if your system asks for reduced motion.
 
 Each view remembers its own camera, so switching 2D/3D and reloading return you
-to where you were looking.
+to where you were looking. The canvas is also cached locally and refreshed with
+a delta, so a reload asks the daemon only what changed rather than
+re-downloading the graph.
 
 ## Configuration
 

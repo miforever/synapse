@@ -10,7 +10,7 @@ renderer expects, sparing the client a transform pass over every edge.
 
 from pydantic import BaseModel
 
-from app.models.fields import RelationType
+from app.models.fields import RelationType, Status
 
 
 class GraphNode(BaseModel):
@@ -20,6 +20,11 @@ class GraphNode(BaseModel):
     summary: str
     thumbnail_url: str | None = None
     tags: list[str] = []
+    # Carried in the snapshot rather than fetched per node: the roadmap draws
+    # every plan at once, and reading each one to find out whether it is done
+    # would be the N+1 that view exists to avoid.
+    status: Status | None = None
+    target_date: str | None = None
 
 
 class GraphEdge(BaseModel):

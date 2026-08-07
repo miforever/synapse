@@ -2,6 +2,9 @@
 
 export type RelationType = "depends_on" | "relates_to" | "blocks" | "part_of";
 
+/** Where a piece of work stands. Closed — the roadmap draws these four. */
+export type Status = "todo" | "doing" | "done" | "dropped";
+
 export interface GraphNode {
   id: string;
   type: string;
@@ -9,6 +12,10 @@ export interface GraphNode {
   summary: string;
   thumbnail_url: string | null;
   tags: string[];
+  /** Set only on memories that represent work. Absent on everything else. */
+  status?: Status | null;
+  /** YYYY-MM-DD, when it is meant to land. */
+  target_date?: string | null;
 }
 
 export interface GraphEdge {

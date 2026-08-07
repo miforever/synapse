@@ -78,6 +78,8 @@ async def add_memory(
     tags: list[str] | None = None,
     files: list[str] | None = None,
     sources: list[str] | None = None,
+    status: str | None = None,
+    target_date: str | None = None,
 ) -> dict[str, object]:
     """Persist a new memory, its tags, and optional edges to existing nodes.
 
@@ -92,6 +94,11 @@ async def add_memory(
     referred to from `content` as `[[src:1]]`. Use cite_source instead when you
     have the page's title and the line you took from it — those are what make a
     citation worth following.
+
+    `status` (todo, doing, done, dropped) and `target_date` (YYYY-MM-DD) mark a
+    memory as work with a state. Set them on plans and issues, and leave them
+    off everything else — a fact is not "todo". Memories carrying a status
+    appear on the roadmap.
     """
     node = await nodes_service.create_node(
         db.conn,
@@ -101,6 +108,8 @@ async def add_memory(
             summary=summary,
             content=content,
             tags=tags or [],
+            status=status,  # type: ignore[arg-type]
+            target_date=target_date,
         ),
     )
 
@@ -142,6 +151,43 @@ async def add_memory(
         "files": [item.model_dump(mode="json") for item in attached],
         "sources": [item.model_dump(mode="json") for item in cited],
     }
+
+
+@mcp.tool
+async def set_status(
+    node_id: str, status: str, target_date: str | None = None
+) -> dict[str, object] | None:
+    """Mark where a piece of work stands: todo, doing, done or dropped.
+
+    The operation worth its own tool, because it is the one an agent performs
+    while doing something else — finishing a task should cost one call, not a
+    read and a general update.
+
+    `dropped` rather than deleting: what was decided against, and why, is worth
+    as much later as what was done. Returns None if the memory does not exist.
+    """
+    node = await nodes_service.update_node(
+        db.conn,
+        node_id,
+        NodeUpdate.model_validate(
+            {"status": status, **({"target_date": target_date} if target_date else {})}
+        ),
+    )
+    if node is None:
+        return None
+
+    await broadcast_node_updated(node)
+    return {"node": node.model_dump(mode="json")}
+
+
+@mcp.tool
+async def read_roadmap() -> list[dict[str, str | None]]:
+    """Every memory carrying a status, soonest first.
+
+    The cheap read for "what is in flight" — id, title, status and target date
+    only. Follow up with read_node on whichever one matters.
+    """
+    return await nodes_service.list_roadmap(db.conn)
 
 
 @mcp.tool
@@ -233,6 +279,8 @@ async def update_memory(
     content: str | None = None,
     type: str | None = None,
     tags: list[str] | None = None,
+    status: str | None = None,
+    target_date: str | None = None,
 ) -> dict[str, object] | None:
     """Correct an existing memory. Omitted fields are left untouched.
 
@@ -248,6 +296,8 @@ async def update_memory(
                 "content": content,
                 "type": type,
                 "tags": tags,
+                "status": status,
+                "target_date": target_date,
             }.items()
             if value is not None
         }

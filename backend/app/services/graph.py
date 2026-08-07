@@ -16,6 +16,8 @@ SELECT
     nodes.title,
     nodes.summary,
     nodes.thumbnail_url,
+    nodes.status,
+    nodes.target_date,
     COALESCE(GROUP_CONCAT(node_tags.tag), '') AS tags
 FROM nodes
 LEFT JOIN node_tags ON node_tags.node_id = nodes.id

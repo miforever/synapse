@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 _INSERT = """
 INSERT INTO nodes
-    (id, type, title, summary, content, thumbnail_url, metadata,
-     created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, type, title, summary, content, thumbnail_url, status, target_date,
+     metadata, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 _BY_ID = "SELECT * FROM nodes WHERE id = ?"
 _SEARCH = """
@@ -90,6 +90,8 @@ async def create_node(conn: aiosqlite.Connection, data: NodeCreate) -> NodeOut:
             data.summary,
             data.content,
             data.thumbnail_url,
+            data.status,
+            data.target_date,
             json.dumps(data.metadata),
             now,
             now,
@@ -196,3 +198,28 @@ async def search_index(
         return []
     rows = await fetch_all(conn, _SEARCH, (expression, limit))
     return [NodeSearchResult.model_validate(row_to_dict(row)) for row in rows]
+
+
+_ROADMAP = """
+SELECT id, type, title, summary, status, target_date
+FROM nodes
+WHERE status IS NOT NULL
+ORDER BY
+    -- Undated work sorts last: a plan with a date is a commitment, and one
+    -- without is an intention, and a roadmap that mixes them by creation time
+    -- reads as neither.
+    CASE WHEN target_date IS NULL THEN 1 ELSE 0 END,
+    target_date,
+    created_at
+"""
+
+
+async def list_roadmap(conn: aiosqlite.Connection) -> list[dict[str, str | None]]:
+    """Every memory carrying a status, in the order a roadmap reads.
+
+    Deliberately narrow — no content, no metadata. An agent asking what is in
+    flight wants the shape of the work, and paying for the body of every plan
+    to find out is the cost this store exists to avoid.
+    """
+    rows = await fetch_all(conn, _ROADMAP)
+    return [row_to_dict(row) for row in rows]

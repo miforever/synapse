@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.models.base import TimestampedModel
-from app.models.fields import NodeType, Summary, TagName, Title
+from app.models.fields import NodeType, Status, Summary, TagName, TargetDate, Title
 from app.models.files import FileOut
 from app.models.sources import SourceOut
 
@@ -14,6 +14,8 @@ class NodeCreate(BaseModel):
     summary: Summary
     content: str = ""
     thumbnail_url: str | None = None
+    status: Status | None = None
+    target_date: TargetDate | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     tags: list[TagName] = Field(default_factory=list)
 
@@ -30,6 +32,8 @@ class NodeUpdate(BaseModel):
     summary: Summary | None = None
     content: str | None = None
     thumbnail_url: str | None = None
+    status: Status | None = None
+    target_date: TargetDate | None = None
     metadata: dict[str, Any] | None = None
     tags: list[TagName] | None = None
 
@@ -41,6 +45,8 @@ class NodeOut(TimestampedModel):
     summary: str
     content: str
     thumbnail_url: str | None
+    status: Status | None = None
+    target_date: str | None = None
     metadata: dict[str, Any]
     tags: list[str]
     # Carried with the memory rather than fetched separately: the drawer needs

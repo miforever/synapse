@@ -5,6 +5,7 @@ import aiosqlite
 
 from app.core.config import settings
 from app.core.schema import (
+    ADDITIONS,
     DEFAULT_NODE_TYPES,
     PRAGMAS,
     SCHEMA,
@@ -40,6 +41,21 @@ async def _load_vector_extension(conn: aiosqlite.Connection) -> bool:
             await conn.enable_load_extension(False)
 
 
+async def _apply_additions(conn: aiosqlite.Connection) -> None:
+    """Add columns that postdate the original schema.
+
+    SQLite has no `ADD COLUMN IF NOT EXISTS`, and asking whether a column
+    exists first is the same round trip as trying and being told — so this
+    tries, and treats "duplicate column name" as the success it is.
+    """
+    for statement in ADDITIONS:
+        try:
+            await conn.execute(statement)
+        except aiosqlite.OperationalError as error:
+            if "duplicate column name" not in str(error).lower():
+                raise
+
+
 async def init_db(db_path: str | None = None) -> aiosqlite.Connection:
     """Open a connection, apply PRAGMAs, and ensure the schema exists."""
     conn = await aiosqlite.connect(db_path or settings.db_path)
@@ -47,6 +63,7 @@ async def init_db(db_path: str | None = None) -> aiosqlite.Connection:
     for pragma in PRAGMAS:
         await conn.execute(pragma)
     await conn.executescript(SCHEMA)
+    await _apply_additions(conn)
 
     if await _load_vector_extension(conn):
         await conn.executescript(VECTOR_TABLE.format(dim=settings.embedding_dim))
