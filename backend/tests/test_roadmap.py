@@ -4,9 +4,9 @@ import aiosqlite
 import pytest
 from pydantic import ValidationError
 
-from app.models.nodes import NodeCreate, NodeUpdate
-from app.services.graph import get_snapshot
-from app.services.nodes import create_node, get_node, list_roadmap, update_node
+from app.canvas.graph import get_snapshot
+from app.memories.models import NodeCreate, NodeUpdate
+from app.memories.nodes import create_node, get_node, list_roadmap, update_node
 
 
 async def _plan(

@@ -8,9 +8,9 @@ import json
 
 import aiosqlite
 
+from app.canvas.models import Settings, SettingsPatch
 from app.core.identifiers import utcnow_iso
 from app.core.queries import fetch_one
-from app.models.settings import Settings, SettingsPatch
 
 # The `key` column doubles as a scope. Today there is exactly one scope; if
 # this ever grows per-workspace settings, that becomes the tenant id without

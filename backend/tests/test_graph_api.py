@@ -1,10 +1,9 @@
 import aiosqlite
 
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate
-from app.services.edges import create_edge
-from app.services.graph import get_snapshot
-from app.services.nodes import create_node
+from app.canvas.graph import get_snapshot
+from app.memories.edges import create_edge
+from app.memories.models import EdgeCreate, NodeCreate
+from app.memories.nodes import create_node
 
 
 async def test_snapshot_is_empty_initially(conn: aiosqlite.Connection) -> None:

@@ -6,9 +6,7 @@ from pathlib import Path
 import aiosqlite
 import pytest
 
-from app.core.config import Settings, _from_file
-from app.models.nodes import NodeCreate
-from app.services.files import (
+from app.attachments.files import (
     FileTooLarge,
     attach_bytes,
     attach_path,
@@ -19,7 +17,9 @@ from app.services.files import (
     purge_for_node,
     resolve_path,
 )
-from app.services.nodes import create_node, delete_node, get_node
+from app.core.config import Settings, _from_file
+from app.memories.models import NodeCreate
+from app.memories.nodes import create_node, delete_node, get_node
 
 
 @pytest.fixture(autouse=True)
@@ -165,7 +165,7 @@ def test_config_file_loses_to_the_environment(
         json.dumps({"port": 9999, "files_path": "from_file", "unknown": 1})
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("SYNAPSE_FILES_PATH", "from_env")
+    monkeypatch.setenv("SYNAPSSE_FILES_PATH", "from_env")
 
     assert _from_file(config_file) == {"port": 9999, "files_path": "from_file"}
     settings = Settings()

@@ -4,9 +4,8 @@ Payload shapes mirror the REST projections in app.models.graph, so the canvas
 handles a live node exactly the way it handles one from the initial snapshot.
 """
 
-from app.models.edges import EdgeOut
-from app.models.nodes import NodeOut
-from app.services.graph import from_edge, from_node
+from app.canvas.graph import from_edge, from_node
+from app.memories.models import EdgeOut, NodeOut
 from app.ws.manager import manager
 
 EVENT_NEW_NODE = "EVENT_NEW_NODE"

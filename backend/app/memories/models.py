@@ -1,11 +1,26 @@
+"""What a memory is, and how memories join to each other.
+
+Nodes carry the content, edges carry the relationships, and both are declared
+here because neither is meaningful without the other.
+"""
+
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.models.base import TimestampedModel
-from app.models.fields import NodeType, Status, Summary, TagName, TargetDate, Title
-from app.models.files import FileOut
-from app.models.sources import SourceOut
+from app.attachments.models import FileOut, SourceOut
+from app.core.base import TimestampedModel
+from app.core.fields import (
+    NodeType,
+    RelationType,
+    Status,
+    Summary,
+    TagName,
+    TargetDate,
+    Title,
+    Weight,
+)
 
 
 class NodeCreate(BaseModel):
@@ -64,3 +79,24 @@ class NodeSearchResult(BaseModel):
     type: str
     title: str
     summary: str
+
+
+class EdgeCreate(BaseModel):
+    source_id: str
+    target_id: str
+    relation_type: RelationType
+    weight: Weight = 1.0
+
+
+class EdgeOut(BaseModel):
+    id: str
+    source_id: str
+    target_id: str
+    relation_type: RelationType
+    weight: float
+    created_at: datetime
+
+
+class TagOut(BaseModel):
+    name: str
+    count: int

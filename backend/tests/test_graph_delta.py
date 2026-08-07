@@ -4,11 +4,10 @@ import asyncio
 
 import aiosqlite
 
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate, NodeUpdate
-from app.services.edges import create_edge
-from app.services.graph import get_snapshot
-from app.services.nodes import create_node, delete_node, update_node
+from app.canvas.graph import get_snapshot
+from app.memories.edges import create_edge
+from app.memories.models import EdgeCreate, NodeCreate, NodeUpdate
+from app.memories.nodes import create_node, delete_node, update_node
 
 
 async def _memory(conn: aiosqlite.Connection, title: str) -> str:

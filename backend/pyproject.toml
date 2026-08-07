@@ -1,7 +1,7 @@
 [project]
-name = "synapse-backend"
+name = "synapsse-backend"
 version = "0.1.0"
-description = "SYNAPSE local-first memory graph daemon backend"
+description = "SYNAPSSE local-first memory graph daemon backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

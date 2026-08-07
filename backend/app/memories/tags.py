@@ -1,7 +1,7 @@
 import aiosqlite
 
 from app.core.queries import fetch_all, fetch_column, row_to_dict
-from app.models.vocabulary import TagOut
+from app.memories.models import TagOut
 
 _REGISTER = "INSERT OR IGNORE INTO tags (name) VALUES (?)"
 _CLEAR_FOR_NODE = "DELETE FROM node_tags WHERE node_id = ?"

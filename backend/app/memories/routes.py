@@ -1,37 +1,14 @@
+"""Reading and correcting the memories themselves."""
+
 from fastapi import APIRouter, HTTPException
 
 from app.core.database import db
-from app.models.graph import GraphSnapshot
-from app.models.nodes import NodeOut, NodeSearchResult, NodeUpdate
-from app.services import edges as edges_service
-from app.services import graph as graph_service
-from app.services import nodes as nodes_service
-from app.services import search as search_service
+from app.memories import edges as edges_service
+from app.memories import nodes as nodes_service
+from app.memories.models import NodeOut, NodeUpdate
 from app.ws.events import broadcast_node_deleted, broadcast_node_updated
 
-router = APIRouter(tags=["graph"])
-
-
-@router.get("/graph")
-async def read_graph(since: str | None = None) -> GraphSnapshot:
-    """The graph, projected down to what the canvas needs to draw.
-
-    Pass the `as_of` from a previous read as `since` to get only what has
-    changed — memories written or edited, edges added, and the ids of anything
-    deleted. A client with a cached graph then pays for the difference rather
-    than for the whole store on every load.
-    """
-    return await graph_service.get_snapshot(db.conn, since)
-
-
-@router.get("/search")
-async def search(q: str, limit: int = 20) -> list[NodeSearchResult]:
-    """Search memories by keyword and meaning.
-
-    Full-text and semantic rankings are fused, so exact terms and paraphrases
-    both find their memory.
-    """
-    return await search_service.search(db.conn, q, limit)
+router = APIRouter(tags=["memories"])
 
 
 @router.get("/nodes/{node_id}")

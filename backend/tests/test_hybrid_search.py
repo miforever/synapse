@@ -2,10 +2,10 @@
 
 import aiosqlite
 
-from app.models.nodes import NodeCreate, NodeUpdate
-from app.services import vectors
-from app.services.nodes import create_node, delete_node, update_node
-from app.services.search import RRF_K, fuse, search
+from app.memories.models import NodeCreate, NodeUpdate
+from app.memories.nodes import create_node, delete_node, update_node
+from app.search import vectors
+from app.search.service import RRF_K, fuse, search
 
 
 def test_fuse_rewards_agreement() -> None:

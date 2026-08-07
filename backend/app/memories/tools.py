@@ -1,4 +1,4 @@
-"""Memory read/write tools — the progressive disclosure path.
+"""Reading and writing memories — the progressive disclosure path.
 
 Agents work index -> fetch -> traverse so recall costs a fraction of the
 context that replaying a transcript would.
@@ -6,16 +6,14 @@ context that replaying a transcript would.
 
 import logging
 
+from app.attachments import files as files_service
+from app.attachments import sources as sources_service
+from app.attachments.models import SourceCreate
 from app.core.database import db
 from app.mcp.instance import mcp
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate, NodeUpdate
-from app.models.sources import SourceCreate
-from app.services import edges as edges_service
-from app.services import files as files_service
-from app.services import nodes as nodes_service
-from app.services import search as search_service
-from app.services import sources as sources_service
+from app.memories import edges as edges_service
+from app.memories import nodes as nodes_service
+from app.memories.models import EdgeCreate, NodeCreate, NodeUpdate
 from app.ws.events import (
     broadcast_new_node,
     broadcast_node_deleted,
@@ -35,18 +33,6 @@ async def _announce(node_id: str) -> None:
     node = await nodes_service.get_node(db.conn, node_id)
     if node is not None:
         await broadcast_node_updated(node)
-
-
-@mcp.tool
-async def search_index(query: str, limit: int = 5) -> list[dict[str, str]]:
-    """Search memories by keyword and meaning, returning lightweight candidates.
-
-    Combines exact full-text matching with semantic similarity, so a query
-    phrased differently from the stored wording still finds it. Returns only
-    id, type, title and summary — call read_node for the full content.
-    """
-    results = await search_service.search(db.conn, query, limit)
-    return [result.model_dump() for result in results]
 
 
 @mcp.tool
@@ -154,124 +140,6 @@ async def add_memory(
 
 
 @mcp.tool
-async def set_status(
-    node_id: str, status: str, target_date: str | None = None
-) -> dict[str, object] | None:
-    """Mark where a piece of work stands: todo, doing, done or dropped.
-
-    The operation worth its own tool, because it is the one an agent performs
-    while doing something else — finishing a task should cost one call, not a
-    read and a general update.
-
-    `dropped` rather than deleting: what was decided against, and why, is worth
-    as much later as what was done. Returns None if the memory does not exist.
-    """
-    node = await nodes_service.update_node(
-        db.conn,
-        node_id,
-        NodeUpdate.model_validate(
-            {"status": status, **({"target_date": target_date} if target_date else {})}
-        ),
-    )
-    if node is None:
-        return None
-
-    await broadcast_node_updated(node)
-    return {"node": node.model_dump(mode="json")}
-
-
-@mcp.tool
-async def read_roadmap() -> list[dict[str, str | None]]:
-    """Every memory carrying a status, soonest first.
-
-    The cheap read for "what is in flight" — id, title, status and target date
-    only. Follow up with read_node on whichever one matters.
-    """
-    return await nodes_service.list_roadmap(db.conn)
-
-
-@mcp.tool
-async def attach_file(node_id: str, path: str) -> dict[str, object] | None:
-    """Attach a file on this machine to an existing memory.
-
-    The daemon copies the bytes into its own store, so the memory keeps working
-    after the original is moved or deleted. Reference it from the memory's
-    Markdown as `[[file:NAME]]`, using the returned `name`, and the canvas
-    renders it inline as something you can open.
-
-    Returns None if the memory does not exist.
-    """
-    if await nodes_service.get_node(db.conn, node_id) is None:
-        return None
-
-    try:
-        attached = await files_service.attach_path(db.conn, node_id, path)
-    except FileNotFoundError:
-        return {"error": f"No file at {path}"}
-    except files_service.FileTooLarge:
-        return {"error": f"{path} is larger than this daemon will store"}
-
-    await _announce(node_id)
-    return {"file": attached.model_dump(mode="json")}
-
-
-@mcp.tool
-async def cite_source(
-    node_id: str,
-    url: str,
-    title: str = "",
-    snippet: str = "",
-) -> dict[str, object] | None:
-    """Record where a memory's claims came from.
-
-    Cite the page you actually read, with the line you took from it as
-    `snippet` — a summary nobody can check is worth much less than the same
-    summary with its receipts. Nothing is fetched: what you saw is what is
-    stored.
-
-    Sources are numbered in the order they are cited, and the memory's Markdown
-    refers to them as `[[src:1]]`, which the canvas renders as a citation the
-    reader can hover to see the source behind it.
-
-    Returns None if the memory does not exist.
-    """
-    if await nodes_service.get_node(db.conn, node_id) is None:
-        return None
-
-    try:
-        cited = await sources_service.cite(
-            db.conn, node_id, SourceCreate(url=url, title=title, snippet=snippet)
-        )
-    except sources_service.UnusableSource:
-        return {"error": f"{url} is not an http(s) address a reader could open"}
-
-    await _announce(node_id)
-    return {"source": cited.model_dump(mode="json")}
-
-
-@mcp.tool
-async def uncite_source(source_id: str) -> dict[str, object]:
-    """Remove a citation from its memory."""
-    record = await sources_service.get_source(db.conn, source_id)
-    deleted = await sources_service.delete_source(db.conn, source_id)
-
-    if deleted and record is not None:
-        await _announce(record.node_id)
-    return {"deleted": deleted, "source_id": source_id}
-
-
-@mcp.tool
-async def detach_file(file_id: str) -> dict[str, object]:
-    """Remove an attachment from its memory, deleting the stored copy."""
-    record = await files_service.get_file(db.conn, file_id)
-    deleted = await files_service.delete_file(db.conn, file_id)
-
-    if deleted and record is not None:
-        await _announce(record.node_id)
-    return {"deleted": deleted, "file_id": file_id}
-
-
-@mcp.tool
 async def update_memory(
     node_id: str,
     title: str | None = None,
@@ -309,6 +177,43 @@ async def update_memory(
 
     await broadcast_node_updated(node)
     return {"node": node.model_dump()}
+
+
+@mcp.tool
+async def set_status(
+    node_id: str, status: str, target_date: str | None = None
+) -> dict[str, object] | None:
+    """Mark where a piece of work stands: todo, doing, done or dropped.
+
+    The operation worth its own tool, because it is the one an agent performs
+    while doing something else — finishing a task should cost one call, not a
+    read and a general update.
+
+    `dropped` rather than deleting: what was decided against, and why, is worth
+    as much later as what was done. Returns None if the memory does not exist.
+    """
+    node = await nodes_service.update_node(
+        db.conn,
+        node_id,
+        NodeUpdate.model_validate(
+            {"status": status, **({"target_date": target_date} if target_date else {})}
+        ),
+    )
+    if node is None:
+        return None
+
+    await broadcast_node_updated(node)
+    return {"node": node.model_dump(mode="json")}
+
+
+@mcp.tool
+async def read_roadmap() -> list[dict[str, str | None]]:
+    """Every memory carrying a status, soonest first.
+
+    The cheap read for "what is in flight" — id, title, status and target date
+    only. Follow up with read_node on whichever one matters.
+    """
+    return await nodes_service.list_roadmap(db.conn)
 
 
 @mcp.tool

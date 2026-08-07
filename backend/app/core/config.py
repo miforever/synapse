@@ -69,22 +69,22 @@ class Settings(BaseSettings):
     """Daemon configuration.
 
     Three layers, each overriding the one before: the defaults here, then
-    `config.json` in the working directory, then `SYNAPSE_*` environment
+    `config.json` in the working directory, then `SYNAPSSE_*` environment
     variables. The file is for the settings you keep — where the store lives,
     how large an attachment may be — and the environment for the ones that
     belong to a particular run, which is why it wins.
     """
 
-    model_config = SettingsConfigDict(env_prefix="SYNAPSE_")
+    model_config = SettingsConfigDict(env_prefix="SYNAPSSE_")
 
-    db_path: str = "synapse.db"
+    db_path: str = "synapsse.db"
     host: str = "127.0.0.1"
     port: int = 8000
 
     # Where attached files are kept. Beside the database on purpose: the two
     # are one store, and backing up either alone leaves memories pointing at
     # files that are not there.
-    files_path: str = "synapse_files"
+    files_path: str = "synapsse_files"
 
     # Per-file ceiling. Generous for documents and screenshots, low enough
     # that a stray upload cannot fill the disk in one request.

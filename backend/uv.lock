@@ -2215,7 +2215,7 @@ wheels = [
 ]
 
 [[package]]
-name = "synapse-backend"
+name = "synapsse-backend"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

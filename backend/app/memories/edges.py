@@ -2,7 +2,7 @@ import aiosqlite
 
 from app.core.identifiers import new_id, utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
-from app.models.edges import EdgeCreate, EdgeOut
+from app.memories.models import EdgeCreate, EdgeOut
 
 _INSERT = """
 INSERT INTO edges (id, source_id, target_id, relation_type, weight, created_at)

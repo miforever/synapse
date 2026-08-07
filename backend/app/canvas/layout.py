@@ -11,9 +11,9 @@ import json
 
 import aiosqlite
 
+from app.canvas.models import CanvasMode, Layout, Position
 from app.core.identifiers import utcnow_iso
 from app.core.queries import fetch_one
-from app.models.layout import CanvasMode, Layout, Position
 
 _GET = "SELECT positions FROM layouts WHERE mode = ?"
 _UPSERT = """

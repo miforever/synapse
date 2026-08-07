@@ -5,10 +5,9 @@ from typing import Any
 import aiosqlite
 import pytest
 
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate
-from app.services.edges import create_edge
-from app.services.nodes import create_node
+from app.memories.edges import create_edge
+from app.memories.models import EdgeCreate, NodeCreate
+from app.memories.nodes import create_node
 from app.ws.events import EVENT_NEW_NODE, broadcast_new_node
 from app.ws.manager import ConnectionManager
 

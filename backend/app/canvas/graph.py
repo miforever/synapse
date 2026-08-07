@@ -2,11 +2,10 @@
 
 import aiosqlite
 
+from app.canvas.models import GraphEdge, GraphNode, GraphSnapshot
 from app.core.identifiers import utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
-from app.models.edges import EdgeOut
-from app.models.graph import GraphEdge, GraphNode, GraphSnapshot
-from app.models.nodes import NodeOut
+from app.memories.models import EdgeOut, NodeOut
 
 # group_concat keeps tags to one query instead of one per node.
 _NODES = """

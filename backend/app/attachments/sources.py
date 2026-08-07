@@ -16,9 +16,9 @@ from urllib.parse import urlparse
 
 import aiosqlite
 
+from app.attachments.models import SourceCreate, SourceOut
 from app.core.identifiers import new_id, utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
-from app.models.sources import SourceCreate, SourceOut
 
 _INSERT = """
 INSERT INTO sources

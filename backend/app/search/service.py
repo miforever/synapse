@@ -15,10 +15,10 @@ inventing a conversion and tuning it forever.
 import aiosqlite
 
 from app.core.queries import fetch_all, row_to_dict
-from app.models.nodes import NodeSearchResult
-from app.services import vectors
-from app.services.embeddings import embed_query
-from app.services.nodes import build_fts_query
+from app.memories.models import NodeSearchResult
+from app.memories.nodes import build_fts_query
+from app.search import vectors
+from app.search.embeddings import embed_query
 
 # Damps the influence of top ranks so one engine cannot dominate the other.
 # 60 is the value from the original RRF paper and behaves well without tuning.

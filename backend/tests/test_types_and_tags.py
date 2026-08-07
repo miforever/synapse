@@ -2,10 +2,10 @@ import aiosqlite
 import pytest
 
 from app.core.slug import slugify
-from app.models.nodes import NodeCreate
-from app.services.nodes import create_node, get_node
-from app.services.tags import find_nodes_by_tag, list_tags, set_tags
-from app.services.types import list_types
+from app.memories.models import NodeCreate
+from app.memories.nodes import create_node, get_node
+from app.memories.tags import find_nodes_by_tag, list_tags, set_tags
+from app.memories.types import list_types
 
 
 def test_slugify_normalizes_variants() -> None:

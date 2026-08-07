@@ -1,9 +1,8 @@
 import aiosqlite
 
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate
-from app.services.edges import create_edge, list_edges_for_node, traverse_graph
-from app.services.nodes import create_node, get_node, search_index
+from app.memories.edges import create_edge, list_edges_for_node, traverse_graph
+from app.memories.models import EdgeCreate, NodeCreate
+from app.memories.nodes import create_node, get_node, search_index
 
 
 async def test_create_and_get_node(conn: aiosqlite.Connection) -> None:
@@ -22,14 +21,14 @@ async def test_search_index_finds_node(conn: aiosqlite.Connection) -> None:
         conn,
         NodeCreate(
             type="project",
-            title="Synapse Daemon",
+            title="Synapsse Daemon",
             summary="Local-first memory graph",
             content="Runs on aiosqlite with FTS5 search",
         ),
     )
     results = await search_index(conn, "aiosqlite")
     assert len(results) == 1
-    assert results[0].title == "Synapse Daemon"
+    assert results[0].title == "Synapsse Daemon"
 
 
 async def test_create_edge_and_traverse(conn: aiosqlite.Connection) -> None:

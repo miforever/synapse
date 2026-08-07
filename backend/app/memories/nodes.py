@@ -4,17 +4,16 @@ import re
 
 import aiosqlite
 
+from app.attachments import files as files_service
+from app.attachments import sources as sources_service
+from app.attachments.models import FileOut, SourceOut
 from app.core.identifiers import new_id, utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
-from app.models.files import FileOut
-from app.models.nodes import NodeCreate, NodeOut, NodeSearchResult, NodeUpdate
-from app.models.sources import SourceOut
-from app.services import files as files_service
-from app.services import sources as sources_service
-from app.services import tags as tags_service
-from app.services import types as types_service
-from app.services import vectors
-from app.services.embeddings import embed_document
+from app.memories import tags as tags_service
+from app.memories import types as types_service
+from app.memories.models import NodeCreate, NodeOut, NodeSearchResult, NodeUpdate
+from app.search import vectors
+from app.search.embeddings import embed_document
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +183,7 @@ def build_fts_query(raw: str) -> str:
     Raw input cannot go straight into MATCH: a stray quote or a bare `AND`
     raises a syntax error rather than returning nothing. Each word is stripped
     of syntax characters and quoted, then given a `*` so search-as-you-type
-    matches prefixes — typing "syn" should find "SYNAPSE".
+    matches prefixes — typing "syn" should find "SYNAPSSE".
     """
     terms = [re.sub(r'["*^:()\-]', " ", word).strip() for word in raw.split()]
     return " ".join(f'"{term}"*' for term in terms if term)

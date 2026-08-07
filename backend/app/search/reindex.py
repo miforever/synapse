@@ -10,9 +10,9 @@ import asyncio
 
 from app.core.database import init_db
 from app.core.queries import fetch_all
-from app.services import vectors
-from app.services.embeddings import embed_document
-from app.services.nodes import embedding_text
+from app.memories.nodes import embedding_text
+from app.search import vectors
+from app.search.embeddings import embed_document
 
 _ALL_NODES = "SELECT id, title, summary, content FROM nodes ORDER BY created_at"
 

@@ -3,16 +3,16 @@
 import aiosqlite
 import pytest
 
-from app.models.nodes import NodeCreate
-from app.models.sources import SourceCreate
-from app.services.nodes import create_node, delete_node, get_node
-from app.services.sources import (
+from app.attachments.models import SourceCreate
+from app.attachments.sources import (
     UnusableSource,
     cite,
     delete_source,
     list_for_node,
     site_of,
 )
+from app.memories.models import NodeCreate
+from app.memories.nodes import create_node, delete_node, get_node
 
 
 async def _memory(conn: aiosqlite.Connection) -> str:

@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 
 from app.core.database import init_db
-from app.services.embeddings import set_embedder
+from app.search.embeddings import set_embedder
 
 
 @pytest_asyncio.fixture

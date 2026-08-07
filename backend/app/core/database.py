@@ -11,7 +11,7 @@ from app.core.schema import (
     SCHEMA,
     VECTOR_TABLE,
 )
-from app.services import vectors
+from app.search import vectors
 
 logger = logging.getLogger(__name__)
 

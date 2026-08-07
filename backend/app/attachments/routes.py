@@ -8,12 +8,11 @@ open canvases redraw it exactly as they would for a change to its text.
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from app.attachments import files as files_service
+from app.attachments import sources as sources_service
+from app.attachments.models import FileOut, SourceCreate, SourceOut
 from app.core.database import db
-from app.models.files import FileOut
-from app.models.sources import SourceCreate, SourceOut
-from app.services import files as files_service
-from app.services import nodes as nodes_service
-from app.services import sources as sources_service
+from app.memories import nodes as nodes_service
 from app.ws.events import broadcast_node_updated
 
 router = APIRouter(tags=["attachments"])

@@ -10,7 +10,7 @@ from app.api.router import router as api_router
 from app.core.config import settings
 from app.core.database import db
 from app.mcp.server import mcp
-from app.services.embeddings import warm_embedder
+from app.search.embeddings import warm_embedder
 from app.ws.routes import router as ws_router
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
     same amount tighter. Put a reverse proxy in front if you ever serve the
     canvas over a real network.
     """
-    app = FastAPI(title="SYNAPSE", lifespan=lifespan)
+    app = FastAPI(title="SYNAPSSE", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

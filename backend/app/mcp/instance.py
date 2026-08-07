@@ -2,4 +2,4 @@
 
 from fastmcp import FastMCP
 
-mcp: FastMCP = FastMCP("synapse")
+mcp: FastMCP = FastMCP("synapsse")

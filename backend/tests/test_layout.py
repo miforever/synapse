@@ -1,9 +1,9 @@
 import aiosqlite
 
-from app.models.layout import Position
-from app.models.nodes import NodeCreate
-from app.services.layout import clear_layout, get_layout, save_layout
-from app.services.nodes import create_node
+from app.canvas.layout import clear_layout, get_layout, save_layout
+from app.canvas.models import Position
+from app.memories.models import NodeCreate
+from app.memories.nodes import create_node
 
 
 async def test_layout_is_empty_until_something_is_placed(

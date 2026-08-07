@@ -19,10 +19,10 @@ from pathlib import Path
 
 import aiosqlite
 
+from app.attachments.models import FileOut
 from app.core.config import settings
 from app.core.identifiers import new_id, utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
-from app.models.files import FileOut
 
 logger = logging.getLogger(__name__)
 

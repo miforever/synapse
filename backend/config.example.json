@@ -1,6 +1,6 @@
 {
-  "db_path": "synapse.db",
-  "files_path": "synapse_files",
+  "db_path": "synapsse.db",
+  "files_path": "synapsse_files",
   "max_file_bytes": 52428800,
   "host": "127.0.0.1",
   "port": 8000,

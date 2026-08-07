@@ -3,8 +3,8 @@
 import aiosqlite
 import pytest
 
-from app.models.nodes import NodeCreate
-from app.services.nodes import build_fts_query, create_node, search_index
+from app.memories.models import NodeCreate
+from app.memories.nodes import build_fts_query, create_node, search_index
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ async def seeded(conn: aiosqlite.Connection) -> aiosqlite.Connection:
         conn,
         NodeCreate(
             type="project",
-            title="SYNAPSE",
+            title="SYNAPSSE",
             summary="Local-first memory graph",
             content="Runs on aiosqlite with FTS5",
         ),
@@ -28,7 +28,7 @@ async def seeded(conn: aiosqlite.Connection) -> aiosqlite.Connection:
 async def test_prefix_match(seeded: aiosqlite.Connection) -> None:
     """Search-as-you-type: a partial word should still find the node."""
     results = await search_index(seeded, "syn")
-    assert [r.title for r in results] == ["SYNAPSE"]
+    assert [r.title for r in results] == ["SYNAPSSE"]
 
 
 async def test_multi_term_narrows(seeded: aiosqlite.Connection) -> None:

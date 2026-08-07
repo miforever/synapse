@@ -4,11 +4,11 @@ Exposed so agents reuse existing classes and tags instead of minting
 near-duplicates for concepts that are already represented.
 """
 
+from app.canvas import settings as settings_service
 from app.core.database import db
 from app.mcp.instance import mcp
-from app.services import settings as settings_service
-from app.services import tags as tags_service
-from app.services import types as types_service
+from app.memories import tags as tags_service
+from app.memories import types as types_service
 
 
 @mcp.tool

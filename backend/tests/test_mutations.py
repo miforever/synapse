@@ -2,13 +2,12 @@
 
 import aiosqlite
 
-from app.models.edges import EdgeCreate
-from app.models.nodes import NodeCreate, NodeUpdate
-from app.services.edges import create_edge, delete_edge, list_edges_for_node
-from app.services.graph import get_snapshot
-from app.services.nodes import create_node, delete_node, get_node, update_node
-from app.services.tags import list_tags
-from app.services.types import list_types
+from app.canvas.graph import get_snapshot
+from app.memories.edges import create_edge, delete_edge, list_edges_for_node
+from app.memories.models import EdgeCreate, NodeCreate, NodeUpdate
+from app.memories.nodes import create_node, delete_node, get_node, update_node
+from app.memories.tags import list_tags
+from app.memories.types import list_types
 
 
 async def test_update_changes_only_given_fields(conn: aiosqlite.Connection) -> None:
@@ -26,7 +25,7 @@ async def test_update_changes_only_given_fields(conn: aiosqlite.Connection) -> N
 
 async def test_update_refreshes_search_index(conn: aiosqlite.Connection) -> None:
     """The FTS triggers must follow edits, or search returns stale titles."""
-    from app.services.nodes import search_index
+    from app.memories.nodes import search_index
 
     node = await create_node(
         conn, NodeCreate(type="idea", title="Aardvark", summary="s")
@@ -97,7 +96,7 @@ async def test_delete_missing_node_reports_false(conn: aiosqlite.Connection) -> 
 
 
 async def test_deleted_node_leaves_search_index(conn: aiosqlite.Connection) -> None:
-    from app.services.nodes import search_index
+    from app.memories.nodes import search_index
 
     node = await create_node(
         conn, NodeCreate(type="idea", title="Ephemeral", summary="s")
