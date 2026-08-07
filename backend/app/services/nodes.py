@@ -156,12 +156,22 @@ async def delete_node(conn: aiosqlite.Connection, node_id: str) -> bool:
 
     The vector table is virtual, so foreign keys do not reach it — its row has
     to be removed explicitly or the index accumulates orphans. Attached bytes
-    need the same treatment for the same reason.
+    need the same treatment for the same reason, and a tombstone is left behind
+    so cached clients find out.
     """
     await vectors.delete(conn, node_id)
     # Before the rows go: the file table cascades, the disk does not.
     await files_service.purge_for_node(conn, node_id)
     cursor = await conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+
+    if cursor.rowcount > 0:
+        # A tombstone, so a client holding a cached graph learns the memory is
+        # gone rather than keeping it until its next full reload.
+        await conn.execute(
+            "INSERT OR REPLACE INTO deleted_nodes (id, deleted_at) VALUES (?, ?)",
+            (node_id, utcnow_iso()),
+        )
+
     await conn.commit()
     return cursor.rowcount > 0
 

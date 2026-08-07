@@ -13,9 +13,15 @@ router = APIRouter(tags=["graph"])
 
 
 @router.get("/graph")
-async def read_graph() -> GraphSnapshot:
-    """The whole graph, projected down to what the canvas needs to draw."""
-    return await graph_service.get_snapshot(db.conn)
+async def read_graph(since: str | None = None) -> GraphSnapshot:
+    """The graph, projected down to what the canvas needs to draw.
+
+    Pass the `as_of` from a previous read as `since` to get only what has
+    changed — memories written or edited, edges added, and the ids of anything
+    deleted. A client with a cached graph then pays for the difference rather
+    than for the whole store on every load.
+    """
+    return await graph_service.get_snapshot(db.conn, since)
 
 
 @router.get("/search")

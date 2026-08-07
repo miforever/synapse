@@ -19,8 +19,19 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function fetchGraph(signal?: AbortSignal): Promise<GraphSnapshot> {
-  return get<GraphSnapshot>("/graph", signal);
+/**
+ * The graph, or only what changed since a previous read.
+ *
+ * `since` is the `as_of` the daemon returned last time. It answers with the
+ * memories written or edited, the edges added, and the ids of anything
+ * deleted — so a browser holding a cached graph pays for the difference.
+ */
+export function fetchGraph(
+  signal?: AbortSignal,
+  since?: string,
+): Promise<GraphSnapshot> {
+  const path = since ? `/graph?since=${encodeURIComponent(since)}` : "/graph";
+  return get<GraphSnapshot>(path, signal);
 }
 
 export function fetchNode(

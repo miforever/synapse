@@ -31,5 +31,21 @@ class GraphEdge(BaseModel):
 
 
 class GraphSnapshot(BaseModel):
+    """The graph, whole or as a delta.
+
+    A client caching the graph passes back `as_of` from its last read and gets
+    only what has changed since — including `deleted`, without which a removed
+    memory would sit on its canvas until a full reload. On a full read the list
+    is empty and there is nothing to reconcile.
+    """
+
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+    deleted: list[str] = []
+    # The moment this snapshot describes. Pass it back as `since` next time —
+    # taken from the database's own clock, so a client whose clock is skewed
+    # cannot ask for a window that never closes.
+    as_of: str
+    # False when the reply is a delta, so a client that has lost its cache
+    # knows it cannot treat this as the whole graph.
+    complete: bool = True

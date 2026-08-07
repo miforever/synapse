@@ -22,6 +22,12 @@ export interface GraphEdge {
 export interface GraphSnapshot {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** Ids removed since `since`. Empty on a full read. */
+  deleted?: string[];
+  /** The moment this describes — pass back as `since` to fetch the next delta. */
+  as_of?: string;
+  /** False when this is a delta rather than the whole graph. */
+  complete?: boolean;
 }
 
 /** A file attached to a memory. Mirrors app/models/files.py. */

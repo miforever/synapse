@@ -58,6 +58,19 @@ CREATE TABLE IF NOT EXISTS layouts (
     updated_at TEXT NOT NULL DEFAULT {_NOW}
 );
 
+-- Memories that have been deleted, and when.
+--
+-- A client holding a cached copy of the graph asks for what changed since it
+-- last looked; without this it would be told about everything written and
+-- nothing removed, so a deleted memory would linger on its canvas until a full
+-- reload. The row is the only trace a memory leaves, which is why it carries
+-- nothing but the id: what was deleted should not be recoverable from the
+-- record that it was.
+CREATE TABLE IF NOT EXISTS deleted_nodes (
+    id TEXT PRIMARY KEY,
+    deleted_at TEXT NOT NULL DEFAULT {_NOW}
+);
+
 -- Files attached to a memory.
 --
 -- The daemon keeps its own copy of the bytes rather than pointing at wherever
@@ -114,6 +127,9 @@ CREATE INDEX IF NOT EXISTS idx_files_node ON files(node_id);
 -- whole table each time: measured at 2ms against 50k rows, versus 0.02ms with
 -- it.
 CREATE INDEX IF NOT EXISTS idx_sources_node ON sources(node_id);
+-- Every incremental fetch asks both of these "what changed after T".
+CREATE INDEX IF NOT EXISTS idx_nodes_updated ON nodes(updated_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_at ON deleted_nodes(deleted_at);
 """
 
 # Mirrors node text into an FTS5 index so search_index stays sub-millisecond.

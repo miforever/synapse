@@ -10,9 +10,13 @@ download.
 """
 
 import asyncio
+import logging
+import threading
 from typing import Protocol
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class Embedder(Protocol):
@@ -38,6 +42,13 @@ class FastEmbedEmbedder:
         self._model_name = model_name
         self._dim = dim
         self._model: object | None = None
+        # Embedding runs in worker threads, so two of them can reach an
+        # unloaded model at once — the startup warm-up and the first search
+        # racing each other is the ordinary case, not a corner one. Without
+        # this they each construct their own copy, and the search that was
+        # supposed to be helped waits for two loads instead of one: measured
+        # at 3.9s against 2.3s unwarmed.
+        self._loading = threading.Lock()
 
     @property
     def dim(self) -> int:
@@ -45,9 +56,13 @@ class FastEmbedEmbedder:
 
     def _load(self) -> object:
         if self._model is None:
-            from fastembed import TextEmbedding
+            with self._loading:
+                # Re-checked inside the lock: whoever waited here while the
+                # first caller loaded must use that model, not build another.
+                if self._model is None:
+                    from fastembed import TextEmbedding
 
-            self._model = TextEmbedding(model_name=self._model_name)
+                    self._model = TextEmbedding(model_name=self._model_name)
         return self._model
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
@@ -94,3 +109,17 @@ async def embed_document(text: str) -> list[float]:
 async def embed_query(text: str) -> list[float]:
     embedder = get_embedder()
     return await asyncio.to_thread(embedder.embed_query, text)
+
+
+async def warm_embedder() -> None:
+    """Pay the model load before anyone is waiting on it.
+
+    Called from the daemon's startup as a background task. Failure is logged
+    and swallowed: an embedder that cannot load is a daemon without semantic
+    search, not a daemon that refuses to start — keyword search still answers,
+    and that distinction is the whole reason search has two engines.
+    """
+    try:
+        await asyncio.to_thread(get_embedder().embed_query, "warm")
+    except Exception:
+        logger.warning("Embedding model failed to load", exc_info=True)
