@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useSearch } from "@/hooks/useSearch";
+import { useGraphStore } from "./GraphProvider";
 import { colorForClass, labelForClass } from "@/lib/node-classes";
 import type { NodeSearchResult } from "@/lib/types";
 
@@ -19,6 +20,19 @@ interface Props {
   matchCount: number | null;
 }
 
+/**
+ * A filter, wearing the colour it filters by.
+ *
+ * Active chips take their class colour outright rather than a neutral
+ * highlight: the colour already means that class everywhere else on the
+ * canvas, so using it here says which filters are on at a glance instead of
+ * making you read the labels. Tags have no colour of their own and stay
+ * neutral, which keeps the two rows telling different stories.
+ *
+ * The dot is never faded. Dimming it was doing two jobs at once — identity and
+ * on/off — and the first one suffered: a half-opacity dot on a pale panel is
+ * not a colour anyone can name.
+ */
 function Chip({
   label,
   color,
@@ -30,20 +44,36 @@ function Chip({
   active: boolean;
   onClick: () => void;
 }) {
+  const painted = active && color;
+
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
+      style={
+        painted
+          ? {
+              // Mixed against the panel rather than set flat, so the chip sits
+              // on the surface instead of punching a hole in it.
+              backgroundColor: `${color}22`,
+              borderColor: `${color}88`,
+              color,
+            }
+          : undefined
+      }
       className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] transition ${
-        active
-          ? "border-white/25 bg-white/10 text-white"
-          : "border-white/10 text-slate-500 hover:text-slate-300"
+        painted
+          ? "font-medium"
+          : active
+            ? "border-line/25 bg-elevated/10 text-strong"
+            : "border-line/[.12] text-faint hover:text-muted"
       }`}
     >
       {color && (
         <span
           className="h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: color, opacity: active ? 1 : 0.5 }}
+          style={{ backgroundColor: color }}
         />
       )}
       {label}
@@ -64,6 +94,7 @@ export function SearchPanel({
   matchCount,
 }: Props) {
   const { results, searching } = useSearch(query);
+  const { theme } = useGraphStore();
 
   return (
     <div className="glass-panel absolute right-5 top-5 z-20 w-80 rounded-xl p-4">
@@ -72,7 +103,7 @@ export function SearchPanel({
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Search memories…"
         aria-label="Search memories"
-        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-cyan/40 focus:outline-none"
+        className="w-full rounded-lg border border-line/[.12] bg-elevated/[.08] px-3 py-2 text-sm text-strong placeholder:text-faint/70 focus:border-cyan/40 focus:outline-none"
       />
 
       <AnimatePresence>
@@ -89,18 +120,18 @@ export function SearchPanel({
                   <button
                     type="button"
                     onClick={() => onSelectResult(result.id)}
-                    className="w-full rounded-md px-2 py-1.5 text-left transition hover:bg-white/10"
+                    className="w-full rounded-md px-2 py-1.5 text-left transition hover:bg-elevated/10"
                   >
                     <span className="flex items-center gap-1.5">
                       <span
                         className="h-1.5 w-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: colorForClass(result.type) }}
+                        style={{ backgroundColor: colorForClass(result.type, theme) }}
                       />
-                      <span className="truncate text-xs text-slate-200">
+                      <span className="truncate text-xs text-strong">
                         {result.title}
                       </span>
                     </span>
-                    <span className="mt-0.5 block truncate pl-3 text-[10px] text-slate-500">
+                    <span className="mt-0.5 block truncate pl-3 text-[10px] text-faint">
                       {result.summary}
                     </span>
                   </button>
@@ -108,7 +139,7 @@ export function SearchPanel({
               ))}
 
               {!searching && results.length === 0 && (
-                <li className="px-2 py-1.5 font-mono text-[10px] text-slate-600">
+                <li className="px-2 py-1.5 font-mono text-[10px] text-faint/70">
                   no matches
                 </li>
               )}
@@ -118,13 +149,13 @@ export function SearchPanel({
       </AnimatePresence>
 
       {classes.length > 0 && (
-        <div className="mt-3 border-t border-white/10 pt-3">
+        <div className="mt-3 border-t border-line/[.12] pt-3">
           <div className="flex flex-wrap gap-1">
             {classes.map((name) => (
               <Chip
                 key={name}
                 label={labelForClass(name)}
-                color={colorForClass(name)}
+                color={colorForClass(name, theme)}
                 active={activeClasses.has(name)}
                 onClick={() => onToggleClass(name)}
               />
@@ -147,7 +178,7 @@ export function SearchPanel({
       )}
 
       {matchCount !== null && (
-        <p className="mt-3 font-mono text-[10px] text-slate-500">
+        <p className="mt-3 font-mono text-[10px] text-faint">
           {matchCount} shown · filters active
         </p>
       )}

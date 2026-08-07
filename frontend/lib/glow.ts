@@ -11,10 +11,18 @@
 
 const cache = new Map<string, HTMLCanvasElement>();
 
+/** Discs are drawn differently per theme, so the theme is part of the key. */
+let theme: "dark" | "light" = "dark";
+
+export function setGlowTheme(next: "dark" | "light"): void {
+  theme = next;
+}
+
 export const GLOW_SIZE = 128;
 
 export function glowCanvas(color: string): HTMLCanvasElement | null {
-  const cached = cache.get(color);
+  const key = `${theme}:${color}`;
+  const cached = cache.get(key);
   if (cached) return cached;
 
   if (typeof document === "undefined") return null;
@@ -25,20 +33,46 @@ export function glowCanvas(color: string): HTMLCanvasElement | null {
   if (!ctx) return null;
 
   const half = GLOW_SIZE / 2;
-  const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
-  // A bright core that holds its colour, then a long falloff so nodes bloom
-  // into the background rather than ending on a hard edge.
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(0.25, color);
-  gradient.addColorStop(0.5, `${color}66`);
-  gradient.addColorStop(1, "rgba(0,0,0,0)");
 
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(half, half, half, 0, Math.PI * 2);
-  ctx.fill();
+  if (theme === "light") {
+    /*
+     * A solid token, not a light source.
+     *
+     * The dark node is a glow, and a glow needs darkness to glow into — on
+     * white every falloff is just the node going out of focus. So the light
+     * disc has no falloff at all: flat colour to a clean edge, with a slightly
+     * darker rim so it still reads as an object where two nodes overlap.
+     */
+    const radius = half * 0.82;
 
-  cache.set(color, canvas);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(half, half, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Its own colour at low alpha over the fill, which darkens the edge
+    // without introducing a second hue.
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.22)";
+    ctx.lineWidth = GLOW_SIZE * 0.02;
+    ctx.beginPath();
+    ctx.arc(half, half, radius - ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    // A bright core that holds its colour, then a long falloff so nodes bloom
+    // into the background rather than ending on a hard edge.
+    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.25, color);
+    gradient.addColorStop(0.5, `${color}66`);
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(half, half, half, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  cache.set(key, canvas);
   return canvas;
 }
 
@@ -54,7 +88,7 @@ const rings = new Map<string, HTMLCanvasElement>();
  * falloff either side of the stroke is only there to stop it aliasing.
  */
 export function ringCanvas(color: string): HTMLCanvasElement | null {
-  const cached = rings.get(color);
+  const cached = rings.get(`${theme}:${color}`);
   if (cached) return cached;
 
   if (typeof document === "undefined") return null;
@@ -81,7 +115,7 @@ export function ringCanvas(color: string): HTMLCanvasElement | null {
   ctx.arc(half, half, radius, 0, Math.PI * 2);
   ctx.stroke();
 
-  rings.set(color, canvas);
+  rings.set(`${theme}:${color}`, canvas);
   return canvas;
 }
 

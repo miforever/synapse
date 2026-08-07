@@ -3,14 +3,11 @@
  * rather than for the whole store.
  *
  * IndexedDB rather than localStorage: a graph of a few thousand memories is
- * megabytes of JSON, and localStorage's quota is around five — the point at
- * which caching would start failing is exactly the size at which it matters.
- * It is also synchronous, and blocking the main thread to write a megabyte is
- * the kind of stutter this canvas exists to avoid.
+ * megabytes of JSON, and localStorage's ~5MB quota would start failing at
+ * exactly the size where caching matters. It is synchronous besides.
  *
- * Everything here fails soft. A browser with storage denied, a quota refusal,
- * a schema from a future version: all of them degrade to fetching the whole
- * graph, which is what happens today anyway.
+ * Everything here fails soft — storage denied, quota refused, an unreadable
+ * entry — by falling back to fetching the whole graph.
  */
 
 import type { GraphSnapshot } from "./types";

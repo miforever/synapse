@@ -36,8 +36,8 @@ function Placeholder({
   onLoad?: () => void;
 }) {
   return (
-    <span className="my-2 flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
+    <span className="my-2 flex items-center gap-3 rounded-lg border border-line/[.12] bg-raised px-3 py-2">
+      <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
         {label}
       </span>
       {onLoad ? (
@@ -94,7 +94,7 @@ export function MemoryContent({
   const allowSource = (src: string) => media.remote_content || !isExternal(src);
 
   return (
-    <div className="prose-synapsse text-sm leading-relaxed text-slate-300">
+    <div className="prose-synapsse text-sm leading-relaxed text-muted">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         /*
@@ -186,7 +186,7 @@ export function MemoryContent({
                 src={url}
                 alt={label}
                 loading="lazy"
-                className="my-2 max-w-full rounded-lg border border-white/10"
+                className="my-2 max-w-full rounded-lg border border-line/[.12]"
               />
             );
           },

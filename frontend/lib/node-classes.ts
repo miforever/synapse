@@ -28,10 +28,40 @@ export const CLASS_COLORS: Readonly<Record<string, string>> = {
   fact: "#94A3B8",
 };
 
-export const FALLBACK_COLOR = "#64748B";
+/**
+ * The same hues, darkened for a pale background.
+ *
+ * These are signal colours chosen to glow against near-black, and a colour
+ * that glows on black is a pastel on white — legible as decoration, useless as
+ * a label. Each is the same hue taken down in lightness until it reads as ink.
+ */
+export const CLASS_COLORS_LIGHT: Readonly<Record<string, string>> = {
+  person: "#0891B2",
+  organization: "#0E7490",
+  place: "#0369A1",
+  object: "#1D4ED8",
 
-export function colorForClass(name: string): string {
-  return CLASS_COLORS[name] ?? FALLBACK_COLOR;
+  project: "#4F46E5",
+  plan: "#4338CA",
+  issue: "#BE185D",
+  event: "#6D28D9",
+
+  idea: "#7E22CE",
+  decision: "#9333EA",
+  preference: "#A21CAF",
+  resource: "#0F766E",
+  fact: "#475569",
+};
+
+export const FALLBACK_COLOR = "#64748B";
+export const FALLBACK_COLOR_LIGHT = "#475569";
+
+export type ColorTheme = "dark" | "light";
+
+export function colorForClass(name: string, theme: ColorTheme = "dark"): string {
+  return theme === "light"
+    ? (CLASS_COLORS_LIGHT[name] ?? FALLBACK_COLOR_LIGHT)
+    : (CLASS_COLORS[name] ?? FALLBACK_COLOR);
 }
 
 /** `follow_up` -> `Follow Up`, for badges and filter chips. */

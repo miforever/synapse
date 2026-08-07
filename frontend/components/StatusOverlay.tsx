@@ -19,12 +19,12 @@ function CopyableCommand({ command }: { command: string }) {
         });
       }}
       title="Copy to clipboard"
-      className="group mt-3 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-left transition hover:border-cyan/30"
+      className="group mt-3 flex w-full items-center gap-2 rounded-lg border border-line/[.12] bg-elevated/10 px-3 py-2 text-left transition hover:border-cyan/30"
     >
       <code className="min-w-0 flex-1 truncate font-mono text-[10px] text-cyan">
         {command}
       </code>
-      <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-slate-500 group-hover:text-slate-300">
+      <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-faint group-hover:text-muted">
         {copied ? "copied" : "copy"}
       </span>
     </button>
@@ -57,7 +57,7 @@ export function StatusOverlay({
         <Logo size={40} />
 
         {loading && (
-          <p className="mt-6 flex items-center gap-2 font-mono text-[11px] text-slate-400">
+          <p className="mt-6 flex items-center gap-2 font-mono text-[11px] text-muted">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan" />
             Loading the graph…
           </p>
@@ -65,22 +65,22 @@ export function StatusOverlay({
 
         {!loading && error && (
           <>
-            <p className="mt-6 text-sm text-slate-300">
+            <p className="mt-6 text-sm text-muted">
               Cannot reach the daemon.
             </p>
-            <p className="mt-1 font-mono text-[10px] text-slate-500">{error}</p>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-1 font-mono text-[10px] text-faint">{error}</p>
+            <p className="mt-3 text-xs text-muted">
               Start it with{" "}
               <code className="font-mono text-cyan">
                 uv run uvicorn app.main:app
               </code>{" "}
-              from <code className="font-mono text-slate-300">backend/</code>,
+              from <code className="font-mono text-muted">backend/</code>,
               or bring up the Docker stack.
             </p>
             <button
               type="button"
               onClick={onRetry}
-              className="mt-4 rounded-lg border border-white/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-300 transition hover:border-cyan/40 hover:text-white"
+              className="mt-4 rounded-lg border border-line/20 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted transition hover:border-cyan/40 hover:text-strong"
             >
               Retry
             </button>
@@ -93,17 +93,17 @@ export function StatusOverlay({
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               Everything is running
             </p>
-            <p className="mt-3 text-sm text-slate-300">
+            <p className="mt-3 text-sm text-muted">
               You have no memories yet.
             </p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+            <p className="mt-2 text-xs leading-relaxed text-muted">
               The daemon is up and the canvas is talking to it — there is
               simply nothing in the graph. Connect an agent, then ask it to
               remember something. Memories appear here as they are written,
               with no refresh.
             </p>
             <CopyableCommand command={MCP_COMMAND} />
-            <p className="mt-2 font-mono text-[10px] text-slate-600">
+            <p className="mt-2 font-mono text-[10px] text-faint/70">
               Cursor: add the same URL to ~/.cursor/mcp.json
             </p>
           </>

@@ -1,14 +1,11 @@
 """Files attached to memories.
 
-The daemon keeps its own copy of every attachment. Referencing the original
-path instead would be cheaper, but a memory is supposed to outlive the tidy-up
-that moved the file, and a path only resolves on the machine that has it —
-neither of which suits a store agents write to and a canvas reads from.
+The daemon keeps its own copy: a memory should outlive the tidy-up that moved
+the original, and a path only resolves on the machine that has it.
 
-Nothing a caller supplies is ever used to build a path. The name on disk is
-derived from the file's own id, with an extension taken from the original only
-after it has been reduced to alphanumerics, so an attachment called
-`../../etc/passwd` is stored as harmlessly as any other.
+Nothing a caller supplies is used to build a path. The name on disk comes from
+the file's id, so an attachment called `../../etc/passwd` is stored as
+harmlessly as any other.
 """
 
 import asyncio

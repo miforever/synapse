@@ -26,7 +26,7 @@ export function Logo({ size = 44, showTagline = true }: Props) {
       />
       <span className="flex flex-col justify-center">
         <span
-          className="font-display font-bold leading-none tracking-[0.12em] text-white"
+          className="font-display font-bold leading-none tracking-[0.12em] text-strong"
           style={{ fontSize: size * 0.5 }}
         >
           SYNAPSSE

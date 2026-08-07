@@ -20,7 +20,7 @@ export function SourceList({ sources }: { sources: readonly SourceRef[] }) {
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex gap-2.5 rounded-lg p-2 transition hover:bg-white/5"
+              className="flex gap-2.5 rounded-lg p-2 transition hover:bg-elevated/[.06]"
             >
               {/* The same number the text cites, so a reader following a
                   citation lands on the right line without counting. */}
@@ -29,14 +29,14 @@ export function SourceList({ sources }: { sources: readonly SourceRef[] }) {
               </span>
 
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs text-slate-200">
+                <span className="block truncate text-xs text-strong">
                   {source.title || source.url}
                 </span>
-                <span className="block truncate font-mono text-[10px] text-slate-500">
+                <span className="block truncate font-mono text-[10px] text-faint">
                   {source.site}
                 </span>
                 {source.snippet && (
-                  <span className="mt-1 line-clamp-2 block text-[11px] italic leading-relaxed text-slate-500">
+                  <span className="mt-1 line-clamp-2 block text-[11px] italic leading-relaxed text-faint">
                     {source.snippet}
                   </span>
                 )}

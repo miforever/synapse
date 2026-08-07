@@ -1,10 +1,9 @@
 /**
  * The graph, read as work.
  *
- * A roadmap is not a different store — it is the same memories, seen through
- * the two things that make something a plan rather than a note: where it
- * stands, and what it is waiting on. Everything here derives from the snapshot
- * the canvas already has, so opening the roadmap costs nothing extra.
+ * The same memories, seen through the two things that make something a plan
+ * rather than a note: where it stands, and what it is waiting on. Derived from
+ * the snapshot the canvas already has, so the roadmap costs nothing extra.
  */
 
 import type { GraphEdge, GraphNode, Status } from "./types";

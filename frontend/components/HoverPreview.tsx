@@ -5,12 +5,9 @@ import type { ReactNode } from "react";
 /**
  * A card that appears above something written into a sentence.
  *
- * Shared by the two things a memory's text can point at — an attachment and a
- * citation — because the mechanics are identical and easy to get subtly wrong
- * in one of them: it has to sit above the line without displacing it, ignore
- * the pointer so it can never come between the cursor and the thing that
- * raised it, and be genuinely absent rather than transparent when closed, so a
- * screen reader is not read a preview nobody asked for.
+ * Shared by attachments and citations: it has to sit above the line without
+ * displacing it, ignore the pointer so it never comes between the cursor and
+ * the thing that raised it, and be absent rather than transparent when closed.
  */
 export function HoverPreview({
   children,

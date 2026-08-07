@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import type { ThemePreference } from "@/hooks/useTheme";
 import type { MediaSettings } from "@/lib/types";
+
+const THEMES = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+] as const;
 
 interface Props {
   open: boolean;
@@ -14,6 +21,8 @@ interface Props {
   reducedMotion: boolean;
   onResetLayout: () => void;
   onClose: () => void;
+  theme: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
 }
 
 function Switch({
@@ -36,22 +45,22 @@ function Switch({
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-elevated/[.06] disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span
         className={`mt-0.5 flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition ${
-          checked ? "bg-cyan/70" : "bg-white/15"
+          checked ? "bg-cyan/70" : "bg-elevated/15"
         }`}
       >
         <span
-          className={`h-3 w-3 rounded-full bg-white transition-transform ${
+          className={`h-3 w-3 rounded-full bg-strong transition-transform ${
             checked ? "translate-x-3" : ""
           }`}
         />
       </span>
       <span className="min-w-0">
-        <span className="block text-xs text-slate-200">{label}</span>
-        <span className="block text-[10px] leading-snug text-slate-500">
+        <span className="block text-xs text-strong">{label}</span>
+        <span className="block text-[10px] leading-snug text-faint">
           {hint}
         </span>
       </span>
@@ -80,6 +89,8 @@ export function SettingsPanel({
   reducedMotion,
   onResetLayout,
   onClose,
+  theme,
+  onThemeChange,
 }: Props) {
   return (
     <AnimatePresence initial={false}>
@@ -97,11 +108,32 @@ export function SettingsPanel({
           <div
             className={`w-72 ${
               above
-                ? "mb-3 border-b border-white/10 pb-2"
-                : "mt-3 border-t border-white/10 pt-2"
+                ? "mb-3 border-b border-line/[.12] pb-2"
+                : "mt-3 border-t border-line/[.12] pt-2"
             }`}
           >
-            <p className="px-2 pb-1 pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
+            <p className="px-2 pb-1 pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-faint/70">
+              Appearance
+            </p>
+            <div className="flex gap-1 px-2 pb-1">
+              {THEMES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onThemeChange(option.value)}
+                  aria-pressed={theme === option.value}
+                  className={`flex-1 rounded-md px-2 py-1.5 text-[11px] transition ${
+                    theme === option.value
+                      ? "bg-elevated/10 text-strong"
+                      : "text-faint hover:text-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-2 px-2 pb-1 pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-faint/70">
               Canvas
             </p>
             <Switch
@@ -127,23 +159,23 @@ export function SettingsPanel({
                 onResetLayout();
                 onClose();
               }}
-              className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-white/5"
+              className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-elevated/[.06]"
             >
-              <span className="mt-0.5 flex h-4 w-7 shrink-0 items-center justify-center text-slate-500">
+              <span className="mt-0.5 flex h-4 w-7 shrink-0 items-center justify-center text-faint">
                 ↺
               </span>
               <span className="min-w-0">
-                <span className="block text-xs text-slate-200">
+                <span className="block text-xs text-strong">
                   Reset arrangement
                 </span>
-                <span className="block text-[10px] leading-snug text-slate-500">
+                <span className="block text-[10px] leading-snug text-faint">
                   Release every memory you placed by hand and lay the graph out
                   afresh
                 </span>
               </span>
             </button>
 
-            <p className="mt-2 px-2 pb-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
+            <p className="mt-2 px-2 pb-1 font-mono text-[9px] uppercase tracking-[0.2em] text-faint/70">
               Content
             </p>
             <Switch

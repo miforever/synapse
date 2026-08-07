@@ -12,8 +12,9 @@ import {
 } from "react";
 import type { Object3D } from "three";
 
+import { setGlowTheme } from "@/lib/glow";
+import { CANVAS_THEMES, type CanvasTheme } from "@/lib/palette";
 import {
-  CANVAS_BACKGROUND,
   type Coords,
   type ForceGraphHandle,
   type GraphData,
@@ -41,14 +42,19 @@ import {
   disposePlasma,
   setLinkFocus,
   setLinkHover,
+  setPlasmaTheme,
   updateLinkObject,
 } from "@/lib/link-plasma";
+import { createGatherForce } from "@/lib/gather-force";
 import { createLivingLinksForce } from "@/lib/living-links";
+import { degreesOf, weighBy } from "@/lib/node-scale";
 import {
   applyFocus,
   applyHover,
+  applyWeights,
   buildNodeObject,
   disposeSpriteCache,
+  setSpriteTheme,
 } from "./node-sprite";
 
 /**
@@ -162,6 +168,9 @@ interface Props {
   focusId: string | null;
   /** Its direct connections, kept legible as context. */
   neighbourIds: ReadonlySet<string>;
+  /** Dark or light — the renderer paints into WebGL and a 2D context, neither
+   *  of which can read a CSS variable. */
+  canvasTheme: CanvasTheme;
   /** The memory under the pointer, lit along with what it connects to. */
   hoverId: string | null;
   /** Its direct connections, lit with it. */
@@ -196,14 +205,6 @@ function truncateLabel(title: string): string {
     : title;
 }
 
-// Lines carry the structure, so they need to read clearly against the dark
-// canvas rather than disappearing into it.
-const LINK_COLOR = "rgba(186, 200, 220, 0.55)";
-
-// Enough to keep the shape of the graph legible behind the open memory
-// without competing with it. Matches the 3D shader's dimming.
-const LINK_COLOR_DIMMED = "rgba(186, 200, 220, 0.08)";
-
 // The connections of the memory under the pointer, in the same cyan the
 // travelling pulses use, so a lit edge looks like the pulse has filled it.
 const LINK_COLOR_HOVER = "rgba(127, 246, 255, 0.8)";
@@ -223,6 +224,7 @@ function GraphCanvasImpl({
   height,
   focusId,
   neighbourIds,
+  canvasTheme,
   hoverId,
   hoverNeighbourIds,
   showThumbnails,
@@ -240,6 +242,14 @@ function GraphCanvasImpl({
    * reading the ref directly silently no-ops and never retries.
    */
   const [handle, setHandle] = useState<ForceGraphHandle | null>(null);
+  const palette = CANVAS_THEMES[canvasTheme];
+
+  /*
+   * Size follows connectedness, recomputed only when the edges change — this
+   * runs inside the paint callback for every node of every frame.
+   */
+  const degrees = useMemo(() => degreesOf(data.links), [data.links]);
+  const weigh = useMemo(() => weighBy(degrees), [degrees]);
   const attach = useCallback(
     (instance: ForceGraphHandle | null) => {
       graphRef.current = instance;
@@ -249,8 +259,8 @@ function GraphCanvasImpl({
   );
 
   const nodeColor = useCallback(
-    (node: GraphNode) => colorForClass(node.type),
-    [],
+    (node: GraphNode) => colorForClass(node.type, canvasTheme),
+    [canvasTheme],
   );
 
   const linkWidth = useCallback(
@@ -273,10 +283,10 @@ function GraphCanvasImpl({
       // what it connects to instead of leaving it in the background.
       if (isLinkHovered(link, hoverId)) return LINK_COLOR_HOVER;
       return isLinkLit(link, focusId, neighbourIds)
-        ? LINK_COLOR
-        : LINK_COLOR_DIMMED;
+        ? palette.link
+        : palette.linkDimmed;
     },
-    [focusId, neighbourIds, hoverId],
+    [focusId, neighbourIds, hoverId, palette],
   );
 
   /**
@@ -325,8 +335,9 @@ function GraphCanvasImpl({
   );
 
   const nodeThreeObject = useCallback(
-    (node: GraphNode): Object3D => buildNodeObject(node, showThumbnails),
-    [showThumbnails],
+    (node: GraphNode): Object3D =>
+      buildNodeObject(node, showThumbnails, weigh(degrees.get(node.id) ?? 0)),
+    [showThumbnails, degrees, weigh],
   );
 
   // 2D nodes are drawn by hand: a filled dot, a ring, and a label that fades
@@ -343,7 +354,8 @@ function GraphCanvasImpl({
       const highlighted = isFocus || neighbourIds.has(node.id);
       const isHover = node.id === hoverId;
       const lit = isHover || hoverNeighbourIds.has(node.id);
-      const baseRadius = isFocus ? 9 : highlighted && focusing ? 7 : 5;
+      const weight = weigh(degrees.get(node.id) ?? 0);
+      const baseRadius = (isFocus ? 7 : highlighted && focusing ? 5.5 : 3.6) * weight;
       /*
        * Hover reads as size, not as brightness.
        *
@@ -355,8 +367,8 @@ function GraphCanvasImpl({
        *
        * Only ever additive, so hovering the open memory cannot shrink it.
        */
-      const radius = Math.max(baseRadius, isHover ? 7.5 : lit ? 6 : 0);
-      const color = colorForClass(node.type);
+      const radius = Math.max(baseRadius, (isHover ? 5.6 : lit ? 4.4 : 0) * weight);
+      const color = colorForClass(node.type, canvasTheme);
 
       ctx.globalAlpha = !focusing ? 1 : isFocus ? 1 : highlighted ? 0.85 : 0.12;
       if (lit) ctx.globalAlpha = 1;
@@ -389,7 +401,7 @@ function GraphCanvasImpl({
         ctx.fill();
 
         ctx.lineWidth = (isFocus ? 2 : 1) / globalScale;
-        ctx.strokeStyle = isFocus ? color : "rgba(255,255,255,0.35)";
+        ctx.strokeStyle = isFocus ? color : palette.ring;
         ctx.stroke();
 
         // A halo so the focused memory reads as lit rather than merely bigger.
@@ -443,13 +455,23 @@ function GraphCanvasImpl({
         ctx.font = `${fontWorld}px ${LABEL_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = "#CBD5E1";
+        ctx.fillStyle = palette.label;
         ctx.fillText(truncateLabel(node.title), x, y + radius + fontWorld * 0.6);
       }
 
       ctx.globalAlpha = 1;
     },
-    [focusId, neighbourIds, hoverId, hoverNeighbourIds, showThumbnails],
+    [
+      focusId,
+      neighbourIds,
+      hoverId,
+      hoverNeighbourIds,
+      showThumbnails,
+      palette,
+      canvasTheme,
+      degrees,
+      weigh,
+    ],
   );
 
   // Filtering hides rather than removes: the simulation keeps running over
@@ -511,9 +533,20 @@ function GraphCanvasImpl({
 
     const n = Math.max(data.nodes.length, 1);
     const charge = graph.d3Force("charge") as
-      | { strength: (value: number) => void; distanceMax: (value: number) => void }
+      | {
+          strength: (value: (node: GraphNode) => number) => void;
+          distanceMax: (value: number) => void;
+        }
       | undefined;
-    charge?.strength(-60 - Math.min(400, 14 * Math.sqrt(n)));
+    /*
+     * Repulsion scales with the graph, and with each memory's own size.
+     *
+     * A well-connected memory is drawn larger, so it needs proportionally more
+     * room around it — without this its neighbours sit inside it and the hub
+     * that matters most is the hardest thing to read.
+     */
+    const base = -55 - Math.min(320, 12 * Math.sqrt(n));
+    charge?.strength((node: GraphNode) => base * weigh(degrees.get(node.id) ?? 0));
     /*
      * Keep repulsion local.
      *
@@ -525,9 +558,20 @@ function GraphCanvasImpl({
     charge?.distanceMax(260);
 
     const link = graph.d3Force("link") as
-      | { distance: (value: number) => void }
+      | { distance: (value: (link: GraphEdge) => number) => void }
       | undefined;
-    link?.distance(40 + Math.min(90, 2 * Math.sqrt(n)));
+    /*
+     * Edge length follows the memories it joins, for the same reason: a link
+     * measured centre to centre has to clear both ends, and a fixed length
+     * buries a hub's neighbours in its own disc.
+     */
+    const span = 34 + Math.min(70, 2 * Math.sqrt(n));
+    link?.distance((edge: GraphEdge) => {
+      const ends =
+        weigh(degrees.get(endpointId(edge.source)) ?? 0) +
+        weigh(degrees.get(endpointId(edge.target)) ?? 0);
+      return span * (0.6 + ends * 0.25);
+    });
 
     /*
      * Drop the default centering force.
@@ -546,7 +590,20 @@ function GraphCanvasImpl({
     center?.strength?.(0);
 
     /*
-     * No origin-referencing force here, deliberately.
+     * Something for the layout to settle against.
+     *
+     * Repulsion has no opinion about the graph's overall size — it pushes
+     * until the links stop it — so without this a sparse graph drifts into a
+     * scatter. Alpha-scaled and centroid-relative, which is what makes it
+     * safe: see lib/gather-force.
+     */
+    graph.d3Force(
+      "gather",
+      createGatherForce({ dimensions: mode === "3d" ? 3 : 2 }),
+    );
+
+    /*
+     * No origin-referencing force that ignores alpha, deliberately.
      *
      * Charge and link are scaled by d3's alpha and fade as the layout cools,
      * but a custom force does not — so anything pulling toward the origin
@@ -562,7 +619,7 @@ function GraphCanvasImpl({
      * forces surging at full strength is exactly the sudden fast movement
      * that reads as a glitch. New nodes arrive warm enough on their own.
      */
-  }, [data.nodes.length, handle, mode]);
+  }, [data.nodes.length, handle, mode, degrees, weigh]);
 
   /**
    * Frame the graph after it has had time to lay out.
@@ -575,15 +632,10 @@ function GraphCanvasImpl({
   /**
    * Whether the user has driven the camera themselves.
    *
-   * Once they have, the framing below stops moving the camera: the fits are
-   * staged over the first several seconds and re-run whenever a memory
-   * arrives, so zooming in during that window — or at any point in a live
-   * graph — was answered by the camera pulling straight back out.
-   *
-   * It does not stop the fit from re-centring what the camera orbits *around*.
-   * That target is the one thing the fit owns which the user has no other way
-   * to set: skipping it outright left the scene rotating about the origin
-   * while the graph sat off to one side.
+   * Once they have, the framing stops moving the camera — the fits are staged
+   * over several seconds and re-run on every new memory, so a zoom would be
+   * answered by the camera pulling straight back out. It still re-centres what
+   * the camera orbits *around*, which nothing else sets.
    */
   const cameraDriven = useRef(false);
 
@@ -799,6 +851,12 @@ function GraphCanvasImpl({
   const linksRef = useRef(data.links);
   linksRef.current = data.links;
 
+  // Existing sprites are resized in place as the graph gains edges, so a new
+  // connection grows the memory it lands on without rebuilding the scene.
+  useEffect(() => {
+    applyWeights((id) => weigh(degrees.get(id) ?? 0));
+  }, [degrees, weigh, nodeCount]);
+
   useEffect(() => {
     applyFocus(focusId, neighbourIds);
     // The 3D links read this on their next frame and ease across with the
@@ -878,6 +936,21 @@ function GraphCanvasImpl({
     };
   }, [handle, mode]);
 
+  /*
+   * Repaint what the scene already holds.
+   *
+   * Labels and link materials are built once and kept, so switching theme has
+   * to reach into them — rebuilding would drop every settled position and
+   * scatter the layout for the sake of a colour.
+   */
+  useEffect(() => {
+    // The glow cache is keyed by theme, so this only has to say which one is
+    // in force before anything asks it for a disc.
+    setGlowTheme(canvasTheme);
+    setSpriteTheme(canvasTheme);
+    setPlasmaTheme(canvasTheme);
+  }, [canvasTheme, nodeCount]);
+
   useEffect(() => disposeSpriteCache, []);
   useEffect(() => disposePlasma, []);
 
@@ -917,13 +990,16 @@ function GraphCanvasImpl({
       graphData: data,
       width,
       height,
-      backgroundColor: CANVAS_BACKGROUND,
+      backgroundColor: palette.background,
       nodeId: "id",
       nodeLabel: "",
       // Never auto-stop: the drift force has to keep receiving ticks. Layout
       // forces still fade via alpha decay, so this settles then just breathes.
-      // Resolve most of the layout before the first paint, so the graph
-      // does not visibly explode outward on load.
+      //
+      // Most of the layout is resolved before the first paint. Without it you
+      // watch the graph fly apart from a random scatter and reassemble, which
+      // is the least legible moment of its life and the first one anyone sees.
+      warmupTicks: 120,
       // Heavy damping keeps the drift impulses from accumulating into speed.
       d3VelocityDecay: 0.82,
       // Dragging reheats the layout; a faster decay lets that energy dissipate
@@ -969,6 +1045,7 @@ function GraphCanvasImpl({
       onSelect,
       nodeVisibility,
       linkVisibility,
+      palette,
       handleDrag,
       handleDragEnd,
       linkColor,

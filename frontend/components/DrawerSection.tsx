@@ -30,23 +30,23 @@ export function DrawerSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="mt-5 border-t border-white/10 pt-3">
+    <section className="mt-5 border-t border-line/[.12] pt-3">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 transition hover:bg-white/5"
+        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 transition hover:bg-elevated/[.06]"
       >
-        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-500">
+        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-faint">
           {title}
           {count !== undefined && count > 0 && (
-            <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-slate-300">
+            <span className="ml-2 rounded-full bg-elevated/10 px-1.5 py-0.5 text-muted">
               {count}
             </span>
           )}
         </span>
         <span
-          className={`font-mono text-[10px] text-slate-600 transition-transform ${
+          className={`font-mono text-[10px] text-faint/70 transition-transform ${
             open ? "" : "-rotate-90"
           }`}
         >

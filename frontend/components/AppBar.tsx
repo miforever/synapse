@@ -12,37 +12,35 @@ import { SettingsPanel } from "./SettingsPanel";
 /**
  * The two things you can be looking at, and the ways each can be drawn.
  *
- * Both sections have sub-modes, and both are routes. Before this the canvas's
- * 2D/3D sat at the top level while the roadmap's Path/Board sat under a
- * section — so the same kind of choice appeared at two different depths, and
- * only one of them was in the URL.
+ * Both sections have sub-modes, and both are routes, so the same kind of
+ * choice always appears at the same depth and always in the URL.
  */
 const SECTIONS = [
   {
     slug: "canvas",
     label: "Canvas",
+    // The graph drawn flat or in space — two ways of showing one thing, so
+    // they belong under it rather than beside it.
     modes: [
       { slug: "2d", label: "2D" },
       { slug: "3d", label: "3D" },
     ],
   },
-  {
-    slug: "roadmap",
-    label: "Roadmap",
-    modes: [
-      { slug: "path", label: "Path" },
-      { slug: "board", label: "Board" },
-    ],
-  },
+  // The roadmap and the board are not two drawings of the same view: one is
+  // the order work happens in, the other is where it stands. Different
+  // questions, so they sit at the top level with the canvas.
+  { slug: "roadmap", label: "Roadmap", modes: [] },
+  { slug: "board", label: "Board", modes: [] },
 ] as const;
 
 export type Section = (typeof SECTIONS)[number]["slug"];
 
-/** Where a section goes when it is picked: whichever mode was last open. */
-const DEFAULT_MODE: Record<Section, string> = {
-  canvas: "3d",
-  roadmap: "path",
-};
+/** Sections with modes remember which one you were on; the rest have none. */
+const DEFAULT_MODE: Partial<Record<Section, string>> = { canvas: "3d" };
+
+function hrefFor(slug: Section, mode?: string): string {
+  return mode ? `/${slug}/${mode}` : `/${slug}`;
+}
 
 export function AppBar() {
   const pathname = usePathname();
@@ -55,6 +53,8 @@ export function AppBar() {
     setMotion,
     reducedMotion,
     resetLayout,
+    themePreference,
+    chooseTheme,
   } = useGraphStore();
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -115,26 +115,34 @@ export function AppBar() {
         ever grow into something else.
       */}
       <div className="pointer-events-none absolute left-5 top-5 z-30 flex items-center gap-2.5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/branding/synapsse-mark.svg"
-          alt=""
-          width={24}
-          height={24}
-          className="shrink-0"
-        />
-        <span className="text-sm font-semibold tracking-tight text-white">
+        {/*
+          The mark keeps its dark plate in both themes. Its rays are violet and
+          cyan drawn to glow against near-black; on white they thin out into a
+          pale scribble, so the plate travels with it rather than the mark
+          being redrawn twice.
+        */}
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0A0814]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/branding/synapsse-mark.svg"
+            alt=""
+            width={20}
+            height={20}
+          />
+        </span>
+        <span className="text-sm font-semibold tracking-tight text-strong">
           Synapsse
         </span>
       </div>
 
       {/*
-        One row, and it moves rather than jumps.
+        One row that lengthens and shrinks.
 
-        Stacked, the section and its modes made a tall box that read as a
-        dialog left open in the middle of the canvas. On one line they read as
-        a path — this section, drawn this way — and the pill grows or shrinks
-        to fit whichever modes belong to the section you picked.
+        Picking Canvas grows it to make room for 2D and 3D; picking anything
+        else shrinks it back, because nothing else has a second way of being
+        drawn. The width is the only thing that animates — a highlight sliding
+        between sections drew the eye to the chrome rather than to what it had
+        just switched to.
 
         Centred by a flex wrapper rather than a translate: a layout animation
         writes the element's transform, so a translate of our own would be
@@ -142,87 +150,71 @@ export function AppBar() {
         resized.
       */}
       <div className="pointer-events-none absolute inset-x-0 top-5 z-30 flex justify-center">
-        <motion.div
-          layout
-          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-          className="glass-panel pointer-events-auto flex items-center gap-1 rounded-full px-1.5 py-1"
-        >
+        <div className="glass-panel pointer-events-auto flex items-center rounded-full px-1.5 py-1">
           <nav className="flex items-center">
             {SECTIONS.map((item) => {
               const active = item.slug === current.slug;
               return (
                 <Link
                   key={item.slug}
-                  href={`/${item.slug}/${
-                    lastMode.current[item.slug] ?? DEFAULT_MODE[item.slug]
-                  }`}
+                  href={hrefFor(
+                    item.slug,
+                    item.modes.length
+                      ? (lastMode.current[item.slug] ?? DEFAULT_MODE[item.slug])
+                      : undefined,
+                  )}
                   aria-current={active ? "page" : undefined}
-                  className={`relative rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    active ? "text-white" : "text-slate-500 hover:text-slate-300"
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    active
+                      ? "bg-elevated/10 text-strong"
+                      : "text-faint hover:text-muted"
                   }`}
                 >
-                  {/*
-                    One element shared between the two, so the highlight
-                    travels from the section you left to the one you picked
-                    instead of blinking out and in.
-                  */}
-                  {active && (
-                    <motion.span
-                      layoutId="section-highlight"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 rounded-full bg-white/10"
-                    />
-                  )}
-                  <span className="relative">{item.label}</span>
+                  {item.label}
                 </Link>
               );
             })}
           </nav>
 
-          <motion.span layout className="mx-0.5 h-4 w-px bg-white/10" />
-
           {/*
-            The modes belong to the section, so they leave with it. popLayout
-            takes the outgoing ones out of the flow as they fade, which is what
-            lets the pill resize smoothly rather than after they have gone.
+            The modes are revealed by the pill growing, not dropped into it.
+            Animating this group's width from nothing to its content, with the
+            overflow clipped, is what makes them slide out from behind the
+            sections rather than appearing on top of them — and the pill is
+            only as wide as its contents, so its width follows for free.
           */}
-          <AnimatePresence mode="popLayout" initial={false}>
-            {current.modes.map((item) => {
-              const active = item.slug === mode;
-              return (
-                <motion.div
-                  key={`${current.slug}-${item.slug}`}
-                  layout
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                >
-                  <Link
-                    href={`/${current.slug}/${item.slug}`}
-                    aria-current={active ? "true" : undefined}
-                    className={`relative block rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors ${
-                      active ? "text-cyan" : "text-slate-500 hover:text-slate-300"
-                    }`}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId="mode-highlight"
-                        transition={{
-                          type: "spring",
-                          stiffness: 420,
-                          damping: 34,
-                        }}
-                        className="absolute inset-0 rounded-full bg-cyan/15"
-                      />
-                    )}
-                    <span className="relative">{item.label}</span>
-                  </Link>
-                </motion.div>
-              );
-            })}
+          <AnimatePresence initial={false}>
+            {current.modes.length > 0 && (
+              <motion.div
+                key={current.slug}
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                className="flex items-center overflow-hidden"
+              >
+                <span className="mx-1.5 h-4 w-px shrink-0 bg-elevated/10" />
+                {current.modes.map((item) => {
+                  const active = item.slug === mode;
+                  return (
+                    <Link
+                      key={item.slug}
+                      href={`/${current.slug}/${item.slug}`}
+                      aria-current={active ? "true" : undefined}
+                      className={`block shrink-0 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                        active
+                          ? "bg-cyan/15 text-cyan"
+                          : "text-faint hover:text-muted"
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </motion.div>
+            )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
 
       <div
@@ -240,6 +232,8 @@ export function AppBar() {
           onMotionChange={setMotion}
           reducedMotion={reducedMotion}
           onResetLayout={resetLayout}
+          theme={themePreference}
+          onThemeChange={chooseTheme}
         />
 
         <div className="flex items-center gap-2.5">
@@ -251,16 +245,16 @@ export function AppBar() {
           />
           <span
             data-testid="memory-count"
-            className="font-mono text-xs tabular-nums text-slate-300"
+            className="font-mono text-xs tabular-nums text-muted"
           >
             {count}
           </span>
           {/* The label changes with the section: the two counts are not the
               same thing, and a bare number would read as the graph shrinking
               on the way to the roadmap. */}
-          <span className="text-[11px] text-slate-500">{countLabel}</span>
+          <span className="text-[11px] text-faint">{countLabel}</span>
 
-          <span className="mx-0.5 h-4 w-px bg-white/10" />
+          <span className="mx-0.5 h-4 w-px bg-elevated/10" />
 
           <button
             type="button"
@@ -270,8 +264,8 @@ export function AppBar() {
             title="Settings"
             className={`rounded-lg px-2 py-1.5 text-base leading-none transition ${
               open
-                ? "bg-white/10 text-white"
-                : "text-slate-500 hover:text-slate-300"
+                ? "bg-elevated/10 text-strong"
+                : "text-faint hover:text-muted"
             }`}
           >
             <span

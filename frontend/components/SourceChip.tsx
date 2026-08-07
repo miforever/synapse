@@ -27,7 +27,7 @@ export function SourceChip({ source }: { source: SourceRef }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Source ${source.position}: ${source.title || source.site}`}
-        className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-violet-400/30 bg-violet-400/15 px-1 align-super font-mono text-[9px] leading-none text-violet-200 no-underline transition hover:border-violet-300/60 hover:bg-violet-400/30 hover:text-white"
+        className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-violet-400/30 bg-violet-400/15 px-1 align-super font-mono text-[9px] leading-none text-violet-200 no-underline transition hover:border-violet-300/60 hover:bg-violet-400/30 hover:text-strong"
       >
         {source.position}
       </a>
@@ -37,13 +37,13 @@ export function SourceChip({ source }: { source: SourceRef }) {
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-violet-400/20 font-mono text-[10px] text-violet-200">
             {initial(source)}
           </span>
-          <span className="truncate font-mono text-[10px] uppercase tracking-widest text-slate-400">
+          <span className="truncate font-mono text-[10px] uppercase tracking-widest text-muted">
             {source.site || "source"}
           </span>
         </span>
 
         {source.title && (
-          <span className="mt-1.5 block text-xs font-medium leading-snug text-white">
+          <span className="mt-1.5 block text-xs font-medium leading-snug text-strong">
             {source.title}
           </span>
         )}
@@ -51,7 +51,7 @@ export function SourceChip({ source }: { source: SourceRef }) {
         {source.snippet && (
           // The line the memory was actually written from. Quoted and clipped:
           // a reminder of the passage, not a copy of the page.
-          <span className="mt-1 line-clamp-4 block border-l border-white/15 pl-2 text-[11px] italic leading-relaxed text-slate-400">
+          <span className="mt-1 line-clamp-4 block border-l border-line/20 pl-2 text-[11px] italic leading-relaxed text-muted">
             {source.snippet}
           </span>
         )}

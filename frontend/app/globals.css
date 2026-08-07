@@ -6,16 +6,74 @@
    Deliberately no system-ui fallback chain here: a silent fallback to the
    platform UI font is the exact "slop" look the design rules rule out. */
 
+/*
+ * The palette, as channels so Tailwind can apply its own opacities.
+ *
+ * Every colour comes from one of these. The alternative is hunting
+ * `text-slate-400` through forty components and guessing which of them meant
+ * "secondary text" and which meant "this exact grey".
+ */
+:root {
+  --canvas: 10 8 20;
+  --surface: 20 16 36;
+  --line: 255 255 255;
+  --line-opacity: 0.1;
+  --strong: 250 250 250;
+  --muted: 148 163 184;
+  --faint: 100 116 139;
+  --elevated: 255 255 255;
+  --elevated-opacity: 0.05;
+  /* Panels and cards, a step out of the page rather than a film over it. */
+  --raised: 22 18 40;
+  --accent: 0 240 255;
+  --violet: 168 85 247;
+  --glass: 10 8 20;
+  --glass-opacity: 0.7;
+  --shadow: 0 8px 32px rgb(10 8 20 / 60%);
+  color-scheme: dark;
+}
+
+/*
+ * Light is not the dark palette inverted.
+ *
+ * Cyan at #00F0FF is a signal against near-black and an illegible smear on
+ * white, so the accent darkens; the fills flip from white-over-dark to
+ * black-over-light; and the shadow softens, because a heavy drop shadow that
+ * reads as depth on black reads as dirt on paper.
+ */
+:root[data-theme="light"] {
+  /* The page is tinted so white cards have something to sit on. Both white
+     would leave the layout to be carried by shadows alone. */
+  --canvas: 243 244 248;
+  --surface: 255 255 255;
+  --line: 15 23 42;
+  --line-opacity: 0.14;
+  --strong: 15 23 42;
+  --muted: 71 85 105;
+  --faint: 100 116 139;
+  --elevated: 15 23 42;
+  --elevated-opacity: 0.04;
+  --raised: 255 255 255;
+  --accent: 8 145 178;
+  --violet: 124 58 237;
+  --glass: 255 255 255;
+  --glass-opacity: 0.8;
+  --shadow: 0 8px 32px rgb(15 23 42 / 8%);
+  color-scheme: light;
+}
+
 body {
-  background-color: #0a0814;
-  color: #fafafa;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--strong));
 }
 
 @layer components {
   /* Violet-tinted glass, so panels sit in the same family as the mark. */
   .glass-panel {
-    @apply border border-white/10 bg-[#0A0814]/70 backdrop-blur-xl;
-    box-shadow: 0 8px 32px rgb(10 8 20 / 60%);
+    border: 1px solid rgb(var(--line) / var(--line-opacity));
+    background: rgb(var(--glass) / var(--glass-opacity));
+    @apply backdrop-blur-xl;
+    box-shadow: var(--shadow);
   }
 }
 
@@ -29,7 +87,7 @@ body {
 .prose-synapsse h2,
 .prose-synapsse h3 {
   font-weight: 600;
-  color: #fafafa;
+  color: rgb(var(--strong));
   letter-spacing: -0.01em;
 }
 
@@ -48,22 +106,22 @@ body {
   font-size: 0.8em;
   padding: 0.1em 0.35em;
   border-radius: 0.25rem;
-  background: rgb(168 85 247 / 12%);
-  color: #e9d5ff;
+  background: rgb(var(--violet) / 12%);
+  color: rgb(var(--violet));
 }
 
 .prose-synapsse pre {
   padding: 0.85rem;
   overflow-x: auto;
   border-radius: 0.5rem;
-  border: 1px solid rgb(255 255 255 / 8%);
-  background: rgb(0 0 0 / 35%);
+  border: 1px solid rgb(var(--line) / var(--line-opacity));
+  background: rgb(var(--elevated) / calc(var(--elevated-opacity) * 2));
 }
 
 .prose-synapsse pre code {
   background: none;
   padding: 0;
-  color: #cbd5e1;
+  color: rgb(var(--muted));
 }
 
 .prose-synapsse ul,
@@ -80,8 +138,8 @@ body {
 
 .prose-synapsse blockquote {
   padding-left: 0.85rem;
-  border-left: 2px solid rgb(168 85 247 / 40%);
-  color: #94a3b8;
+  border-left: 2px solid rgb(var(--violet) / 40%);
+  color: rgb(var(--muted));
 }
 
 .prose-synapsse table {
@@ -93,6 +151,6 @@ body {
 .prose-synapsse th,
 .prose-synapsse td {
   padding: 0.35rem 0.5rem;
-  border: 1px solid rgb(255 255 255 / 8%);
+  border: 1px solid rgb(var(--line) / var(--line-opacity));
   text-align: left;
 }

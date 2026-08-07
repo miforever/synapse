@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { attachFile, detachFile, fetchNode, fileUrl } from "@/lib/api";
 import { isImage } from "@/lib/files";
+import { useGraphStore } from "./GraphProvider";
 import { colorForClass, labelForClass } from "@/lib/node-classes";
 import type {
   FileRef,
@@ -39,6 +40,7 @@ export function NodeDrawer({
   onClose,
   onNavigate,
 }: Props) {
+  const { theme } = useGraphStore();
   const [detail, setDetail] = useState<NodeDetail | null>(null);
   // Sticky across nodes on purpose: someone traversing the graph wants the
   // connection list to stay however they left it.
@@ -219,7 +221,7 @@ export function NodeDrawer({
               </span>
             </div>
           )}
-          <header className="relative shrink-0 border-b border-white/10">
+          <header className="relative shrink-0 border-b border-line/[.12]">
             {/*
               The picture first, then what kind of thing this is, then its
               name. A memory with an image is recognised by the image long
@@ -250,23 +252,23 @@ export function NodeDrawer({
                 />
                 {/* The panel's own background, faded up over the foot of the
                     image so the text below it never sits on a hard edge. */}
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#070911] to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-canvas to-transparent" />
               </div>
             )}
 
             <div className="flex items-start gap-3 p-5">
               <span
                 className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: colorForClass(node.type) }}
+                style={{ backgroundColor: colorForClass(node.type, theme) }}
               />
               <div className="min-w-0 flex-1">
                 <span
                   className="font-mono text-[10px] uppercase tracking-[0.2em]"
-                  style={{ color: colorForClass(node.type) }}
+                  style={{ color: colorForClass(node.type, theme) }}
                 >
                   {labelForClass(node.type)}
                 </span>
-                <h2 className="mt-1 text-lg font-semibold leading-tight text-white">
+                <h2 className="mt-1 text-lg font-semibold leading-tight text-strong">
                   {node.title}
                 </h2>
               </div>
@@ -275,10 +277,10 @@ export function NodeDrawer({
                 onClick={onClose}
                 aria-label="Close"
                 title="Close (Esc)"
-                className={`shrink-0 rounded-md px-2 py-1 font-mono text-xs transition hover:bg-white/10 hover:text-white ${
+                className={`shrink-0 rounded-md px-2 py-1 font-mono text-xs transition hover:bg-elevated/10 hover:text-strong ${
                   cover
-                    ? "absolute right-3 top-3 bg-black/50 text-white backdrop-blur"
-                    : "text-slate-400"
+                    ? "absolute right-3 top-3 bg-elevated/20 text-strong backdrop-blur"
+                    : "text-muted"
                 }`}
               >
                 ✕
@@ -289,7 +291,7 @@ export function NodeDrawer({
           {/* Only the reading area scrolls, so connections never drift out of
               reach behind a long memory. */}
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <p className="text-sm italic leading-relaxed text-slate-400">
+            <p className="text-sm italic leading-relaxed text-muted">
               {node.summary}
             </p>
 
@@ -298,7 +300,7 @@ export function NodeDrawer({
                 {node.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] text-slate-300"
+                    className="rounded-full border border-line/[.12] bg-raised px-2 py-0.5 font-mono text-[10px] text-muted"
                   >
                     {tag}
                   </span>
@@ -306,7 +308,7 @@ export function NodeDrawer({
               </div>
             )}
 
-            <div className="mt-5 border-t border-white/10 pt-5">
+            <div className="mt-5 border-t border-line/[.12] pt-5">
               {detail ? (
                 <MemoryContent
                   content={detail.content}
@@ -315,7 +317,7 @@ export function NodeDrawer({
                   sources={sources}
                 />
               ) : (
-                <p className="font-mono text-xs text-slate-500">loading…</p>
+                <p className="font-mono text-xs text-faint">loading…</p>
               )}
             </div>
 
@@ -335,21 +337,21 @@ export function NodeDrawer({
               whatever the memory's length, and collapses when the reader
               wants the room back. */}
           {related.length > 0 && (
-            <section className="shrink-0 border-t border-white/10 bg-black/20">
+            <section className="shrink-0 border-t border-line/[.12] bg-elevated/[.05]">
               <button
                 type="button"
                 onClick={() => setShowConnections((open) => !open)}
                 aria-expanded={showConnections}
-                className="flex w-full items-center justify-between px-5 py-3 transition hover:bg-white/5"
+                className="flex w-full items-center justify-between px-5 py-3 transition hover:bg-elevated/[.06]"
               >
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
                   Connections
-                  <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-slate-300">
+                  <span className="ml-2 rounded-full bg-elevated/10 px-1.5 py-0.5 text-muted">
                     {related.length}
                   </span>
                 </span>
                 <span
-                  className={`font-mono text-[10px] text-slate-500 transition-transform ${
+                  className={`font-mono text-[10px] text-faint transition-transform ${
                     showConnections ? "" : "-rotate-90"
                   }`}
                 >
@@ -380,7 +382,7 @@ export function NodeDrawer({
                           <button
                             type="button"
                             onClick={() => onNavigate(otherId)}
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/10"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-elevated/10"
                           >
                             <span
                               className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -391,10 +393,10 @@ export function NodeDrawer({
                               }}
                             />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs text-slate-200">
+                              <span className="block truncate text-xs text-strong">
                                 {other?.title ?? "Unknown memory"}
                               </span>
-                              <span className="block font-mono text-[10px] text-slate-500">
+                              <span className="block font-mono text-[10px] text-faint">
                                 {outgoing ? "→" : "←"} {edge.relation_type}
                               </span>
                             </span>

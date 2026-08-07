@@ -15,10 +15,9 @@ interface GraphState {
 /**
  * Loads the graph once, from the cache and a delta where possible.
  *
- * A reload used to re-download the entire store — 1.6MB at two thousand
- * memories, and growing with it — to redraw something the browser had just
- * been looking at. With a cached copy it asks only what changed since, which
- * is 88 bytes when the answer is nothing.
+ * Re-downloading the whole store to redraw what the browser was just looking
+ * at costs 1.6MB at two thousand memories and grows with it. With a cached
+ * copy it asks only what changed since — 88 bytes when the answer is nothing.
  *
  * The cache is never trusted on its own: it is a starting point that the
  * daemon corrects. If the delta fails for any reason, this falls back to the

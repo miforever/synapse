@@ -11,7 +11,7 @@ import { StatusOverlay } from "@/components/StatusOverlay";
 import { useElementSize } from "@/hooks/useElementSize";
 import { useSettings } from "@/hooks/useSettings";
 import { suspendOrbit } from "@/lib/ambient-orbit";
-import type { ForceGraphHandle, PositionedNode } from "@/lib/force-graph";
+import type { ForceGraphHandle } from "@/lib/force-graph";
 import type { GraphNode } from "@/lib/types";
 import { endpointId } from "@/lib/types";
 
@@ -30,7 +30,8 @@ export function CanvasView({ mode }: { mode: CanvasMode }) {
   const { width, height } = useElementSize(container);
 
   const graphRef = useRef<ForceGraphHandle | null>(null);
-  const { data, nodesById, loading, error, motion, markMoved } = useGraphStore();
+  const { data, nodesById, loading, error, motion, markMoved, theme } =
+    useGraphStore();
   const { settings } = useSettings();
 
   const [hovered, setHovered] = useState<GraphNode | null>(null);
@@ -185,6 +186,7 @@ export function CanvasView({ mode }: { mode: CanvasMode }) {
           mode={mode}
           width={width}
           height={height}
+          canvasTheme={theme}
           focusId={selected?.id ?? null}
           neighbourIds={neighbourIds}
           hoverId={hovered?.id ?? null}

@@ -151,7 +151,7 @@ test.describe("step progress", () => {
 
 test.describe("the path view", () => {
   test("shows numbered steps and switches to the board", async ({ page }) => {
-    await page.goto("/roadmap/path");
+    await page.goto("/roadmap");
     await expect(page.getByTestId("memory-count")).toBeVisible();
 
     await expect(page.getByText(/^Step 1/)).toBeVisible();

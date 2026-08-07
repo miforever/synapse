@@ -155,7 +155,7 @@ test.describe("the roadmap page", () => {
   test("shows the work in the graph, and opens a memory from it", async ({
     page,
   }) => {
-    await page.goto("/roadmap/path");
+    await page.goto("/roadmap");
 
     const count = page.getByTestId("memory-count");
     await expect(count).toBeVisible();
@@ -196,7 +196,7 @@ test.describe("moving work", () => {
   }
 
   test("the status control writes through to the daemon", async ({ page }) => {
-    await page.goto("/roadmap/path");
+    await page.goto("/roadmap");
     await expect(page.getByTestId("memory-count")).toBeVisible();
 
     // The keyboard path, which is also the one a screen reader has.
@@ -226,7 +226,7 @@ test.describe("moving work", () => {
   });
 
   test("a move survives a reload", async ({ page }) => {
-    await page.goto("/roadmap/path");
+    await page.goto("/roadmap");
     await expect(page.getByTestId("memory-count")).toBeVisible();
 
     const card = page.locator("ul li").filter({ has: page.locator("select") }).first();
@@ -247,7 +247,7 @@ test.describe("moving work", () => {
   });
 
   test("dragging a card to another lane moves it", async ({ page }) => {
-    await page.goto("/roadmap/path");
+    await page.goto("/roadmap");
     await expect(page.getByTestId("memory-count")).toBeVisible();
 
     const card = page.locator("ul li").filter({ has: page.locator("select") }).first();

@@ -32,6 +32,8 @@ import type { GraphNode } from "@/lib/types";
 interface Entry {
   /** The node's own container, which the hover halo is parented into. */
   group: Group;
+  /** Size multiplier from how connected this memory is — see lib/node-scale. */
+  weight: number;
   sprite: Sprite;
   label: SpriteText;
   type: string;
@@ -95,7 +97,7 @@ function classMaterial(type: string): SpriteMaterial {
   if (cached) return cached;
 
   const material = new SpriteMaterial({
-    map: discTexture(colorForClass(type)),
+    map: discTexture(colorForClass(type, spriteTheme)),
     transparent: true,
     depthWrite: false,
   });
@@ -109,7 +111,7 @@ function thumbnailMaterial(url: string, type: string): SpriteMaterial | null {
   const cached = thumbnailMaterials.get(key);
   if (cached) return cached;
 
-  const canvas = getCircularThumbnail(url, colorForClass(type), THUMB_SIZE);
+  const canvas = getCircularThumbnail(url, colorForClass(type, spriteTheme), THUMB_SIZE);
   if (!canvas) return null;
 
   const material = new SpriteMaterial({
@@ -121,14 +123,44 @@ function thumbnailMaterial(url: string, type: string): SpriteMaterial | null {
   return material;
 }
 
+/** Set by the canvas when the theme changes; read as each label is built. */
+let labelColour = "#E2E8F0";
+let spriteTheme: "dark" | "light" = "dark";
+
+export function setSpriteTheme(theme: "dark" | "light"): void {
+  labelColour = theme === "light" ? "#334155" : "#E2E8F0";
+  spriteTheme = theme;
+
+  // Materials and textures are cached per class, so they hold the old theme's
+  // colours until they are dropped. Rebuilding them in place keeps every node
+  // exactly where the simulation has put it.
+  classMaterials.forEach((material) => material.dispose());
+  classTextures.forEach((texture) => texture.dispose());
+  ringTextures.forEach((texture) => texture.dispose());
+  classMaterials.clear();
+  classTextures.clear();
+  ringTextures.clear();
+  objects.forEach((entry) => {
+    entry.bright?.dispose();
+    entry.bright = undefined;
+    entry.sprite.material = classMaterial(entry.type);
+  });
+  // Labels already in the scene are restyled in place — rebuilding them would
+  // drop every node's settled position.
+  objects.forEach((entry) => {
+    entry.label.color = labelColour;
+  });
+}
+
 export function buildNodeObject(
   node: GraphNode,
   showThumbnails: boolean,
+  weight = 1,
 ): Object3D {
   const group = new Group();
 
   const sprite = new Sprite(classMaterial(node.type));
-  sprite.scale.set(10, 10, 1);
+  sprite.scale.set(BASE_SCALE * weight, BASE_SCALE * weight, 1);
   group.add(sprite);
 
   if (showThumbnails && node.thumbnail_url) {
@@ -141,7 +173,7 @@ export function buildNodeObject(
 
     // Ready already? Swap now. Otherwise swap when the image decodes —
     // mutating the sprite directly keeps this off React's path entirely.
-    getCircularThumbnail(url, colorForClass(node.type), THUMB_SIZE, () =>
+    getCircularThumbnail(url, colorForClass(node.type, spriteTheme), THUMB_SIZE, () =>
       applyThumbnail(),
     );
     applyThumbnail();
@@ -151,7 +183,7 @@ export function buildNodeObject(
   // wider than the node it belongs to. Truncating and shrinking keeps a label
   // attached to its node rather than sprawling across its neighbours.
   const label = new SpriteText(truncate(node.title));
-  label.color = "#E2E8F0";
+  label.color = labelColour;
   label.textHeight = LABEL_HEIGHT;
   /*
    * Offset in screen space, not world space.
@@ -183,10 +215,11 @@ export function buildNodeObject(
 
   objects.set(node.id, {
     group,
+    weight,
     sprite,
     label,
     type: node.type,
-    targetScale: BASE_SCALE,
+    targetScale: BASE_SCALE * weight,
     targetOpacity: 1,
     targetLabelOpacity: 1,
   });
@@ -259,7 +292,7 @@ const hitMaterial = new MeshBasicMaterial({
   depthWrite: false,
 });
 
-const BASE_SCALE = 10;
+const BASE_SCALE = 7;
 // Neighbours sit between the focus and the background so the local
 // neighbourhood reads as a group rather than as slightly-less-dim noise.
 const NEIGHBOUR_SCALE = 13;
@@ -349,16 +382,15 @@ function restyle(): void {
       entry.targetOpacity = focusing ? DIM_OPACITY : 1;
     }
 
-    const focusScale = isFocus
-      ? FOCUS_SCALE
-      : focusing && highlighted
-        ? NEIGHBOUR_SCALE
-        : BASE_SCALE;
-    const hoverScale = isHover
-      ? HOVER_SCALE
-      : lit
-        ? HOVER_NEIGHBOUR_SCALE
-        : BASE_SCALE;
+    const focusScale =
+      (isFocus
+        ? FOCUS_SCALE
+        : focusing && highlighted
+          ? NEIGHBOUR_SCALE
+          : BASE_SCALE) * entry.weight;
+    const hoverScale =
+      (isHover ? HOVER_SCALE : lit ? HOVER_NEIGHBOUR_SCALE : BASE_SCALE) *
+      entry.weight;
     // The larger of the two, so hovering the open memory cannot shrink it.
     entry.targetScale = Math.max(focusScale, hoverScale);
 
@@ -368,7 +400,7 @@ function restyle(): void {
   const hovered = hoveredId ? objects.get(hoveredId) : undefined;
   if (hovered) {
     const sprite = haloSprite();
-    sprite.material.map = ringTexture(colorForClass(hovered.type));
+    sprite.material.map = ringTexture(colorForClass(hovered.type, spriteTheme));
     sprite.material.needsUpdate = true;
     // Parenting to the group rather than tracking the node's position: the
     // simulation moves the group every tick, and the halo comes along for free.
@@ -456,6 +488,23 @@ function startFocusTween(): void {
   };
 
   requestAnimationFrame(step);
+}
+
+/**
+ * Resize the memories whose connectedness has changed.
+ *
+ * Applied to what is already in the scene rather than rebuilt: an edge
+ * arriving should grow the node it lands on, not scatter the layout around it.
+ */
+export function applyWeights(weightOf: (id: string) => number): void {
+  let changed = false;
+  objects.forEach((entry, id) => {
+    const weight = weightOf(id);
+    if (Math.abs(weight - entry.weight) < 0.01) return;
+    entry.weight = weight;
+    changed = true;
+  });
+  if (changed) restyle();
 }
 
 /** Frees GPU resources when the canvas unmounts. */

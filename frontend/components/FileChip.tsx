@@ -24,7 +24,7 @@ export function FileChip({ file }: { file: FileRef }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-baseline gap-1 rounded-md border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 align-baseline text-[0.9em] text-cyan-200 no-underline transition hover:border-cyan/50 hover:bg-cyan/20 hover:text-white"
+        className="inline-flex items-baseline gap-1 rounded-md border border-cyan/20 bg-cyan/10 px-1.5 py-0.5 align-baseline text-[0.9em] text-cyan-200 no-underline transition hover:border-cyan/50 hover:bg-cyan/20 hover:text-strong"
       >
         <span aria-hidden className="font-mono text-[0.85em] opacity-70">
           ↗
@@ -42,10 +42,10 @@ export function FileChip({ file }: { file: FileRef }) {
             className="mb-1.5 max-h-40 max-w-full rounded"
           />
         )}
-        <span className="block truncate font-mono text-[10px] text-slate-300">
+        <span className="block truncate font-mono text-[10px] text-muted">
           {file.name}
         </span>
-        <span className="block font-mono text-[10px] uppercase tracking-widest text-slate-500">
+        <span className="block font-mono text-[10px] uppercase tracking-widest text-faint">
           {kindOf(file)} · {formatSize(file.size)}
         </span>
       </HoverPreview>

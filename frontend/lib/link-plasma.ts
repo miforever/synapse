@@ -236,6 +236,26 @@ export function updateLinkObject(
   return true;
 }
 
+/**
+ * Repaint the links for a theme.
+ *
+ * The resting colour has to change with the background — a pale line that
+ * reads as structure against near-black is invisible on white — while the
+ * pulse keeps its own colour, since it is a signal rather than a surface.
+ */
+export function setPlasmaTheme(theme: "dark" | "light"): void {
+  if (!material) return;
+  material.uniforms.uColor.value = new Color(
+    theme === "light" ? "#94A3B8" : "#BAC8DC",
+  );
+  // The pulse is a highlight on dark and has to become a darkening on light,
+  // or it disappears into the page exactly where it is meant to draw the eye.
+  material.uniforms.uPulseColor.value = new Color(
+    theme === "light" ? "#0E7490" : "#7FF6FF",
+  );
+  material.uniforms.uBase.value = theme === "light" ? 0.7 : 0.55;
+}
+
 export function disposePlasma(): void {
   material?.dispose();
   material = null;

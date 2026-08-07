@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useGraphStore } from "./GraphProvider";
 import { colorForClass, labelForClass } from "@/lib/node-classes";
 import {
   LANE_HINTS,
@@ -33,24 +34,23 @@ const DRAG_TYPE = "application/x-synapsse-memory";
  * where a name tells you what to go and look at.
  */
 export function RoadmapBoard({ roadmap, onOpen, onMove, error }: Props) {
+  const { theme } = useGraphStore();
   /**
    * Where the card being dragged would land: which lane, and how far down it.
    *
-   * A lane-level target was enough to change a status but told you nothing
-   * about where the card would end up, so dropping onto a full lane felt like
-   * throwing it over a wall. Tracking the slot lets the board open a gap at
-   * the point the card would go, which is the part that makes it feel like
-   * placing something rather than submitting it.
+   * Tracking the slot rather than only the lane lets the board open a gap
+   * where the card would go, which is what makes it feel like placing
+   * something rather than throwing it over a wall.
    */
   const [over, setOver] = useState<{ lane: Status; index: number } | null>(null);
 
   if (roadmap.total === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 px-6 py-32 text-center">
-        <p className="text-sm text-slate-400">Nothing on the roadmap yet.</p>
-        <p className="max-w-md text-xs leading-relaxed text-slate-600">
+        <p className="text-sm text-muted">Nothing on the roadmap yet.</p>
+        <p className="max-w-md text-xs leading-relaxed text-faint/70">
           A memory joins the board when it is given a status — ask an agent to{" "}
-          <code className="font-mono text-slate-500">set_status</code> on a plan
+          <code className="font-mono text-faint">set_status</code> on a plan
           it is working through, or pass one when the memory is written.
         </p>
       </div>
@@ -101,14 +101,14 @@ export function RoadmapBoard({ roadmap, onOpen, onMove, error }: Props) {
             }`}
           >
             <div className="mb-2 flex items-baseline gap-2">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
                 {LANE_LABELS[lane]}
               </h2>
-              <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-300">
+              <span className="rounded-full bg-elevated/10 px-1.5 py-0.5 font-mono text-[9px] text-muted">
                 {roadmap.lanes[lane].length}
               </span>
             </div>
-            <p className="mb-3 text-[10px] leading-snug text-slate-600">
+            <p className="mb-3 text-[10px] leading-snug text-faint/70">
               {LANE_HINTS[lane]}
             </p>
 
@@ -139,6 +139,7 @@ export function RoadmapBoard({ roadmap, onOpen, onMove, error }: Props) {
                       roadmap={roadmap}
                       onOpen={onOpen}
                       onMove={onMove}
+                      theme={theme}
                     />
                   </div>
                   {index === roadmap.lanes[lane].length - 1 && (
@@ -152,7 +153,7 @@ export function RoadmapBoard({ roadmap, onOpen, onMove, error }: Props) {
                   className={`rounded-lg border border-dashed px-3 py-4 text-center font-mono text-[10px] transition ${
                     over?.lane === lane
                       ? "border-cyan/40 text-cyan"
-                      : "border-white/5 text-slate-700"
+                      : "border-line/[.07] text-faint/50"
                   }`}
                 >
                   {over?.lane === lane ? "drop to move here" : "empty"}
@@ -185,14 +186,17 @@ function Card({
   roadmap,
   onOpen,
   onMove,
+  theme,
 }: {
   item: RoadmapItem;
   roadmap: Roadmap;
   onOpen: (node: GraphNode) => void;
   onMove: (node: GraphNode, status: Status) => void;
+  theme: "dark" | "light";
 }) {
+  const [dragging, setDragging] = useState(false);
   const { node, blockedBy, blocking, overdue } = item;
-  const colour = colorForClass(node.type);
+  const colour = colorForClass(node.type, theme);
   // Finished and abandoned work recedes: the board is read for what is next,
   // and the two lanes that are behind you should not compete for that.
   const settled = node.status === "done" || node.status === "dropped";
@@ -203,10 +207,43 @@ function Card({
       onDragStart={(event) => {
         event.dataTransfer.setData(DRAG_TYPE, node.id);
         event.dataTransfer.effectAllowed = "move";
+        setDragging(true);
+
+        /*
+         * The drag image is a snapshot taken now, so tilting the original
+         * would come too late. It is rasterised from the element's own box,
+         * which clips a rotation's corners — hence the padded frame.
+         */
+        const box = event.currentTarget.getBoundingClientRect();
+        const pad = 24;
+
+        const frame = document.createElement("div");
+        frame.style.position = "absolute";
+        frame.style.top = "-9999px";
+        frame.style.left = "-9999px";
+        frame.style.padding = `${pad}px`;
+        frame.style.pointerEvents = "none";
+
+        const ghost = event.currentTarget.cloneNode(true) as HTMLElement;
+        ghost.style.width = `${box.width}px`;
+        ghost.style.transform = "rotate(3deg)";
+        ghost.style.opacity = "1";
+        frame.appendChild(ghost);
+        document.body.appendChild(frame);
+
+        event.dataTransfer.setDragImage(
+          frame,
+          event.clientX - box.left + pad,
+          event.clientY - box.top + pad,
+        );
+        // The snapshot is taken synchronously, so the frame has done its job
+        // by the next frame.
+        requestAnimationFrame(() => frame.remove());
       }}
-      className={`group rounded-xl border border-white/10 bg-white/5 transition hover:border-white/20 hover:bg-white/10 ${
+      onDragEnd={() => setDragging(false)}
+      className={`group rounded-xl border border-line/[.12] bg-raised transition hover:border-line/25 hover:bg-elevated/10 ${
         settled ? "opacity-60 hover:opacity-100" : ""
-      }`}
+      } ${dragging ? "opacity-40" : ""}`}
     >
       <button
         type="button"
@@ -226,37 +263,37 @@ function Card({
           </span>
         </span>
 
-        <span className="mt-1.5 block text-sm font-medium leading-snug text-white">
+        <span className="mt-1.5 block text-sm font-medium leading-snug text-strong">
           {node.title}
         </span>
 
-        <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-slate-500">
+        <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-faint">
           {node.summary}
         </span>
 
         {node.target_date && (
           <span
             className={`mt-2 flex items-center gap-1.5 font-mono text-[10px] ${
-              overdue ? "text-rose-300" : "text-slate-500"
+              overdue ? "text-rose-300" : "text-faint"
             }`}
           >
             <span aria-hidden>{overdue ? "⚠" : "◷"}</span>
             {node.target_date}
-            <span className={overdue ? "text-rose-400/70" : "text-slate-600"}>
+            <span className={overdue ? "text-rose-400/70" : "text-faint/70"}>
               {relativeDate(node.target_date)}
             </span>
           </span>
         )}
 
         {blockedBy.length > 0 && (
-          <span className="mt-2 block border-t border-white/5 pt-2">
+          <span className="mt-2 block border-t border-line/[.07] pt-2">
             <span className="block font-mono text-[9px] uppercase tracking-widest text-amber-300/70">
               Waiting on
             </span>
             {blockedBy.map((id) => (
               <span
                 key={id}
-                className="mt-0.5 block truncate text-[10px] text-slate-400"
+                className="mt-0.5 block truncate text-[10px] text-muted"
               >
                 {roadmap.byId.get(id)?.node.title ?? "unknown"}
               </span>
@@ -265,7 +302,7 @@ function Card({
         )}
 
         {blocking.length > 0 && (
-          <span className="mt-1.5 block font-mono text-[9px] text-slate-600">
+          <span className="mt-1.5 block font-mono text-[9px] text-faint/70">
             blocks {blocking.length}{" "}
             {blocking.length === 1 ? "other" : "others"}
           </span>
@@ -280,15 +317,15 @@ function Card({
         and this is the only control on the board that changes anything, so
         leaving it mouse-only would put the whole write path out of reach.
       */}
-      <label className="flex items-center gap-2 border-t border-white/5 px-3 py-2">
+      <label className="flex items-center gap-2 border-t border-line/[.07] px-3 py-2">
         <span className="sr-only">Status for {node.title}</span>
         <select
           value={node.status ?? "todo"}
           onChange={(event) => onMove(node, event.target.value as Status)}
-          className="w-full cursor-pointer rounded bg-transparent font-mono text-[10px] uppercase tracking-widest text-slate-500 outline-none transition hover:text-slate-300 focus:text-slate-200"
+          className="w-full cursor-pointer rounded bg-transparent font-mono text-[10px] uppercase tracking-widest text-faint outline-none transition hover:text-muted focus:text-strong"
         >
           {LANES.map((lane) => (
-            <option key={lane} value={lane} className="bg-canvas text-slate-200">
+            <option key={lane} value={lane} className="bg-canvas text-strong">
               {LANE_LABELS[lane]}
             </option>
           ))}

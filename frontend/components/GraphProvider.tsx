@@ -14,6 +14,7 @@ import { useGraph } from "@/hooks/useGraph";
 import { useGraphStream } from "@/hooks/useGraphStream";
 import { useLayout } from "@/hooks/useLayout";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useTheme, type Theme, type ThemePreference } from "@/hooks/useTheme";
 import type { GraphData, PositionedNode } from "@/lib/force-graph";
 import type { GraphEdge, GraphNode } from "@/lib/types";
 import { endpointId } from "@/lib/types";
@@ -44,6 +45,12 @@ interface GraphStore {
   reducedMotion: boolean;
   markMoved: () => void;
   resetLayout: () => void;
+
+  /** Light, dark, or whatever the system says — see useTheme. */
+  themePreference: ThemePreference;
+  /** What that resolves to right now, which is what the canvas paints with. */
+  theme: Theme;
+  chooseTheme: (theme: ThemePreference) => void;
 }
 
 const Context = createContext<GraphStore | null>(null);
@@ -51,14 +58,11 @@ const Context = createContext<GraphStore | null>(null);
 /**
  * The graph, loaded once for every view that reads it.
  *
- * It lives above the routes rather than inside them because the canvas and the
- * roadmap are two ways of looking at one thing. Loading it per page would
- * refetch the whole store on every navigation, and — worse for the canvas —
- * would hand the simulation a new set of node objects each time, so a layout
- * that had settled would scatter and settle again on the way back.
- *
- * The live stream is here for the same reason: one socket, and every view sees
- * a memory arrive at the same moment.
+ * Above the routes rather than inside them: the canvas and the roadmap are two
+ * ways of looking at one thing. Loading per page would refetch the store on
+ * every navigation and hand the simulation new node objects each time, so a
+ * settled layout would scatter on the way back. The socket is here for the
+ * same reason — one connection, and every view sees a memory arrive at once.
  */
 export function GraphProvider({ children }: { children: ReactNode }) {
   const { snapshot, loading, error } = useGraph();
@@ -121,6 +125,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     [data.nodes],
   );
 
+  const { preference: themePreference, theme, choose: chooseTheme } = useTheme();
   const [motionOn, setMotion] = useState(true);
   const reducedMotion = useReducedMotion();
 
@@ -151,6 +156,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       reducedMotion,
       markMoved,
       resetLayout,
+      themePreference,
+      theme,
+      chooseTheme,
     }),
     [
       data,
@@ -162,6 +170,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       reducedMotion,
       markMoved,
       resetLayout,
+      themePreference,
+      theme,
+      chooseTheme,
     ],
   );
 
