@@ -1,17 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
-
 import type { MediaSettings } from "@/lib/types";
 
 interface Props {
+  open: boolean;
   media: MediaSettings;
   onMediaChange: (media: Partial<MediaSettings>) => void;
   motion: boolean;
   onMotionChange: (motion: boolean) => void;
   reducedMotion: boolean;
   onResetLayout: () => void;
+  onClose: () => void;
 }
 
 function Switch({
@@ -58,66 +58,40 @@ function Switch({
 }
 
 /**
- * Secondary controls, behind one button.
+ * Secondary controls, unfolding from the bar they belong to.
  *
- * These are preferences rather than things you reach for while navigating, and
- * as bare toggles labelled "img / audio / video / remote" they were both
- * cryptic and competing with the view mode for attention. A menu gives each
- * one room to say what it actually does.
+ * Not a popover any more: as a floating card it read as a separate window that
+ * happened to appear near the bar, and it covered the canvas underneath it.
+ * Growing the bar's own body downward keeps one object on screen — the panel
+ * you were already looking at, with more of itself showing.
+ *
+ * Open state is owned by the bar rather than by this component, since the bar
+ * is what changes shape.
  */
-export function SettingsMenu({
+export function SettingsPanel({
+  open,
   media,
   onMediaChange,
   motion: motionOn,
   onMotionChange,
   reducedMotion,
   onResetLayout,
+  onClose,
 }: Props) {
-  const [open, setOpen] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
   return (
-    <div ref={container} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-label="Settings"
-        title="Settings"
-        className={`rounded-md px-2.5 py-1.5 text-base leading-none transition ${
-          open ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"
-        }`}
-      >
-        ⚙
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
-            className="glass-panel absolute left-0 top-full z-30 mt-2 w-72 rounded-xl p-2"
-          >
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          // Height and opacity together: height alone slides the content into
+          // view like a drawer of text, and the fade is what makes it read as
+          // the panel deepening instead.
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+          className="overflow-hidden"
+        >
+          <div className="mt-3 w-72 border-t border-white/10 pt-2">
             <p className="px-2 pb-1 pt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
               Canvas
             </p>
@@ -142,7 +116,7 @@ export function SettingsMenu({
               type="button"
               onClick={() => {
                 onResetLayout();
-                setOpen(false);
+                onClose();
               }}
               className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-white/5"
             >
@@ -187,9 +161,9 @@ export function SettingsMenu({
               checked={media.remote_sources}
               onChange={(remote_sources) => onMediaChange({ remote_sources })}
             />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
