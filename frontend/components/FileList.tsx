@@ -22,7 +22,13 @@ interface Props {
  */
 export function FileList({ files, busy, error, onRemove }: Props) {
   return (
-    <DrawerSection title="Files" count={files.length}>
+    <DrawerSection
+      title="Files"
+      count={files.length}
+      // Nothing attached yet? Open, because this section is also where you
+      // find out that dropping a file here is possible at all.
+      defaultOpen={files.length === 0}
+    >
       {files.length === 0 && !busy && (
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           Drop a file anywhere on this panel to attach it, or have an agent

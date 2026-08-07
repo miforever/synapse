@@ -16,22 +16,31 @@ server, no configuration.
 
 ## Why
 
-Agents accumulate context but have nowhere durable to put it. SYNAPSE stores
-memories as a graph of linked nodes and hands agents a deliberately
-token-frugal read path — search a lightweight index, fetch only the node you
-need, then traverse outward — so recall costs a fraction of the context that
-dumping a transcript would.
+Agents accumulate context but have nowhere durable to put it. Every session
+starts cold, so the same explanations get re-typed and the same decisions get
+re-litigated — and the usual fix, replaying a transcript into the context
+window, pays for everything that was ever said to recall the one thing that
+matters now.
+
+SYNAPSE stores memories as a graph of linked nodes and hands agents a
+deliberately token-frugal read path: search a lightweight index, fetch only the
+node you need, then traverse outward from it. Recall costs a fraction of what
+dumping a transcript would, and what comes back is structured — a decision, its
+reasons, and what it depends on — rather than a wall of chat.
+
+The canvas exists because a memory store you cannot see is a memory store you
+cannot trust. Everything an agent writes appears on it as it is written.
 
 ## Stack
 
-| Layer    | Technology                                                     |
-| -------- | -------------------------------------------------------------- |
-| Daemon   | Python 3.11, FastAPI, uvicorn                                    |
-| Storage  | SQLite via aiosqlite — WAL journaling, FTS5 full-text search     |
-| Search   | Hybrid keyword + semantic, via sqlite-vec and local ONNX embeddings |
-| Agents   | FastMCP (Model Context Protocol)                                 |
-| Realtime | WebSockets                                                       |
-| Canvas   | Next.js, Tailwind CSS, react-force-graph 2D/3D, Three.js         |
+| Layer    | Technology                                                          |
+| -------- | ------------------------------------------------------------------- |
+| Daemon   | Python 3.11, FastAPI, uvicorn                                        |
+| Storage  | SQLite via aiosqlite — WAL journaling, FTS5 full-text search         |
+| Search   | Hybrid keyword + semantic, via sqlite-vec and local ONNX embeddings  |
+| Agents   | FastMCP (Model Context Protocol)                                     |
+| Realtime | WebSockets                                                           |
+| Canvas   | Next.js, Tailwind CSS, react-force-graph 2D/3D, Three.js             |
 
 ## Layout
 
@@ -60,8 +69,13 @@ cd frontend && npm install && npm run dev
 - Daemon: http://localhost:8000 (health at `/health`)
 - Canvas: http://localhost:3000
 
+The first start fetches the embedding model (~2.2GB) before semantic search
+answers; keyword search works immediately, and the download happens once.
+
 Under Docker the database persists in the `synapse-data` volume; natively it
-lands at `backend/synapse.db`. Override with `SYNAPSE_DB_PATH`.
+lands at `backend/synapse.db`, with attachments beside it in
+`backend/synapse_files/`. The two are one store — back up or move them
+together.
 
 ## Connect an agent
 
@@ -116,20 +130,51 @@ class instead of three.
 Memories are editable and removable — a store you cannot correct just
 accumulates confidently stated mistakes.
 
+## Files and sources
+
+A memory can carry the things it is about and the evidence it rests on.
+
+**Files** are copied into the daemon's own store rather than referenced where
+they came from, so a memory survives the tidy-up that moved the original and
+does not depend on which machine is reading it. Agents attach by path
+(`attach_file`); you attach by dropping a file onto an open memory in the
+canvas. Nothing a caller supplies is ever used to build a path — the name on
+disk comes from the file's id — so an attachment called `../../etc/passwd` is
+stored as harmlessly as any other.
+
+**Sources** are the web pages a memory was written from, recorded with the
+page's title and the line that was taken from it. Nothing is fetched to enrich
+them: that would make writing a memory depend on a site being up, and would
+send your reading list to whatever host was cited. Only `http(s)` is accepted.
+
+Both are referenced from the memory's Markdown where they belong:
+
+```markdown
+The numbers behind this are in [[file:q3-benchmarks.csv]], and the approach
+follows the reference implementation[[src:1]].
+```
+
+`[[file:NAME]]` renders as something to open, with a preview on hover.
+`[[src:N]]` renders as a citation you can hover to see the source behind it.
+A reference with nothing behind it is left visible as written — a broken
+citation is a fact about the memory worth seeing.
+
 ## Agent tools
 
 Exposed over MCP:
 
-| Tool                              | Purpose                                        |
-| --------------------------------- | ---------------------------------------------- |
-| `search_index(query, limit)`      | Hybrid keyword + semantic search, lightweight candidates |
-| `read_node(node_id)`              | Full content and immediate connections          |
-| `traverse_graph(node_id, depth)`  | Local structural map N hops out                 |
-| `add_memory(...)`                 | Persist a node, its tags, and optional edges    |
-| `update_memory(...)`              | Correct a memory; omitted fields stay untouched |
-| `delete_memory(node_id)`          | Remove a memory and every edge touching it      |
-| `link_memories(...)` / `unlink_memories(...)` | Connect or disconnect two memories  |
-| `list_types()` / `list_tags()`    | Existing vocabulary, so agents reuse over invent |
+| Tool                                          | Purpose                                                  |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `search_index(query, limit)`                  | Hybrid keyword + semantic search, lightweight candidates  |
+| `read_node(node_id)`                          | Full content and immediate connections                    |
+| `traverse_graph(node_id, depth)`              | Local structural map N hops out                           |
+| `add_memory(...)`                             | Persist a node, its tags, edges, files and sources        |
+| `update_memory(...)`                          | Correct a memory; omitted fields stay untouched           |
+| `delete_memory(node_id)`                      | Remove a memory and every edge touching it                |
+| `link_memories(...)` / `unlink_memories(...)`  | Connect or disconnect two memories                        |
+| `attach_file(...)` / `detach_file(...)`        | Attach a file on this machine, or remove one              |
+| `cite_source(...)` / `uncite_source(...)`      | Record where a claim came from, or remove a citation      |
+| `list_types()` / `list_tags()`                 | Existing vocabulary, so agents reuse rather than invent   |
 
 ## Search
 
@@ -143,7 +188,7 @@ scale between a keyword rank and a cosine distance, and rewards memories both
 engines agree on.
 
 Embeddings run locally: `intfloat/multilingual-e5-large` as ONNX on the CPU. It
-is fetched once (~2.2GB) and then works offline — memory content is never sent
+is fetched once and then works offline — memory content is never sent
 anywhere. It is retrieval-tuned and covers 100+ languages, so notes are
 searchable in whatever language they were written.
 
@@ -157,6 +202,44 @@ uv run python -m app.cli.reindex
 If SQLite was built without extension support, semantic search is skipped and
 keyword search continues to answer on its own.
 
+## The canvas
+
+The graph is rendered in 2D or 3D from the same node objects, so switching
+views keeps the layout you were looking at.
+
+- **Hover** a memory to light it, its neighbours, and the connections between
+  them.
+- **Click** to open it: the memory recedes everything else, and the drawer
+  shows its content, files, sources and connections.
+- **Drag** a memory to place it. Placed memories stay where you put them,
+  across sessions; the rest of the graph settles around them and stays calm
+  while you are holding one.
+- **Ambient drift** keeps a settled graph alive rather than frozen, and the 3D
+  scene turns slowly on its own. Both stand down when you take the camera, and
+  are disabled entirely if your system asks for reduced motion.
+
+Each view remembers its own camera, so switching 2D/3D and reloading return you
+to where you were looking.
+
+## Configuration
+
+Everything has a working default. Three layers, each overriding the one before:
+the built-in defaults, then `config.json` in the working directory, then
+`SYNAPSE_*` environment variables — the file for what you keep, the environment
+for a particular run.
+
+```jsonc
+// backend/config.json — see config.example.json
+{
+  "db_path": "synapse.db",
+  "files_path": "synapse_files",
+  "max_file_bytes": 52428800,
+  "host": "127.0.0.1",
+  "port": 8000,
+  "cors_origins": ["http://localhost:3000"]
+}
+```
+
 ## Development
 
 ```bash
@@ -167,6 +250,7 @@ uv run pytest
 
 cd frontend
 npm run lint && npm run build
+npx playwright test        # needs the daemon and canvas running
 ```
 
 CI runs the same checks and builds both images on every push and pull request
@@ -174,13 +258,27 @@ to `main` and `develop`.
 
 ## Privacy
 
-Everything stays on your machine — one SQLite file, no telemetry, no accounts.
+Everything stays on your machine — one SQLite file, a directory of attachments,
+no telemetry, no accounts.
 
 Memory content is written by agents, so the canvas will not load media from it
 until you say so. Images render by default; audio and video are click-to-load,
 and remote sources are blocked entirely until enabled. Those switches live in
 the control bar and persist in the daemon. Agents can read them (so they know
 what is worth attaching) but cannot change them.
+
+Attachments are served by the daemon itself, and sources are never fetched — so
+opening a memory does not tell any third party that you did.
+
+## Contributing
+
+Issues and pull requests are welcome. A few things that will make review quick:
+
+- Run the checks above before opening a PR; CI runs exactly the same ones.
+- Explain *why* in the code where the reason is not obvious from it — this
+  codebase comments the reasoning behind a choice, not what the line does.
+- New behaviour comes with a test. The suite runs against an in-memory database
+  and a stub embedder, so it is fast and needs no model download.
 
 ## License
 
