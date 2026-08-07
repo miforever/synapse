@@ -11,6 +11,7 @@ after it has been reduced to alphanumerics, so an attachment called
 `../../etc/passwd` is stored as harmlessly as any other.
 """
 
+import asyncio
 import logging
 import mimetypes
 import re
@@ -99,7 +100,10 @@ async def attach_bytes(
     stored = _stored_name(file_id, shown)
 
     path = store_root() / stored
-    path.write_bytes(data)
+    # Off the event loop. A 50MB attachment written inline stalls every other
+    # request and the WebSocket broadcasts sharing this loop — the same reason
+    # embedding runs in a thread.
+    await asyncio.to_thread(path.write_bytes, data)
 
     await conn.execute(
         _INSERT,
@@ -133,7 +137,8 @@ async def attach_path(conn: aiosqlite.Connection, node_id: str, source: str) -> 
     if origin.stat().st_size > settings.max_file_bytes:
         raise FileTooLarge(source)
 
-    return await attach_bytes(conn, node_id, origin.name, origin.read_bytes())
+    data = await asyncio.to_thread(origin.read_bytes)
+    return await attach_bytes(conn, node_id, origin.name, data)
 
 
 async def get_file(conn: aiosqlite.Connection, file_id: str) -> FileOut | None:
