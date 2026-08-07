@@ -4,18 +4,25 @@ Agents work index -> fetch -> traverse so recall costs a fraction of the
 context that replaying a transcript would.
 """
 
+import logging
+
 from app.core.database import db
 from app.mcp.instance import mcp
 from app.models.edges import EdgeCreate
 from app.models.nodes import NodeCreate, NodeUpdate
+from app.models.sources import SourceCreate
 from app.services import edges as edges_service
+from app.services import files as files_service
 from app.services import nodes as nodes_service
 from app.services import search as search_service
+from app.services import sources as sources_service
 from app.ws.events import (
     broadcast_new_node,
     broadcast_node_deleted,
     broadcast_node_updated,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @mcp.tool
@@ -57,11 +64,22 @@ async def add_memory(
     type: str,
     linked_to: list[str] | None = None,
     tags: list[str] | None = None,
+    files: list[str] | None = None,
+    sources: list[str] | None = None,
 ) -> dict[str, object]:
     """Persist a new memory, its tags, and optional edges to existing nodes.
 
     An unrecognized `type` is registered automatically rather than rejected;
     call list_types() first to reuse the existing vocabulary where it fits.
+
+    `files` are paths on this machine, copied into the daemon's own store.
+    Mention one from `content` as `[[file:NAME]]` and the canvas renders it
+    where you wrote it, as something the reader can open.
+
+    `sources` are the URLs this memory was written from, cited in order and
+    referred to from `content` as `[[src:1]]`. Use cite_source instead when you
+    have the page's title and the line you took from it — those are what make a
+    citation worth following.
     """
     node = await nodes_service.create_node(
         db.conn,
@@ -74,6 +92,25 @@ async def add_memory(
         ),
     )
 
+    attached = []
+    for source in files or []:
+        try:
+            attached.append(await files_service.attach_path(db.conn, node.id, source))
+        except (FileNotFoundError, files_service.FileTooLarge):
+            # One unreachable path must not lose the memory that was just
+            # written. The response says what was stored; the caller can see
+            # what is missing from it.
+            logger.warning("Could not attach %s to %s", source, node.id)
+
+    cited = []
+    for url in sources or []:
+        try:
+            cited.append(
+                await sources_service.cite(db.conn, node.id, SourceCreate(url=url))
+            )
+        except sources_service.UnusableSource:
+            logger.warning("Ignoring unusable source %s on %s", url, node.id)
+
     created = [
         await edges_service.create_edge(
             db.conn,
@@ -84,11 +121,104 @@ async def add_memory(
         for target_id in linked_to or []
     ]
 
-    await broadcast_new_node(node, created)
+    # Re-read so the broadcast and the response carry the attachments.
+    stored = await nodes_service.get_node(db.conn, node.id) or node
+    await broadcast_new_node(stored, created)
     return {
-        "node": node.model_dump(),
+        "node": stored.model_dump(mode="json"),
         "edges": [edge.model_dump() for edge in created],
+        "files": [item.model_dump(mode="json") for item in attached],
+        "sources": [item.model_dump(mode="json") for item in cited],
     }
+
+
+@mcp.tool
+async def attach_file(node_id: str, path: str) -> dict[str, object] | None:
+    """Attach a file on this machine to an existing memory.
+
+    The daemon copies the bytes into its own store, so the memory keeps working
+    after the original is moved or deleted. Reference it from the memory's
+    Markdown as `[[file:NAME]]`, using the returned `name`, and the canvas
+    renders it inline as something you can open.
+
+    Returns None if the memory does not exist.
+    """
+    if await nodes_service.get_node(db.conn, node_id) is None:
+        return None
+
+    try:
+        attached = await files_service.attach_path(db.conn, node_id, path)
+    except FileNotFoundError:
+        return {"error": f"No file at {path}"}
+    except files_service.FileTooLarge:
+        return {"error": f"{path} is larger than this daemon will store"}
+
+    node = await nodes_service.get_node(db.conn, node_id)
+    if node is not None:
+        await broadcast_node_updated(node)
+    return {"file": attached.model_dump(mode="json")}
+
+
+@mcp.tool
+async def cite_source(
+    node_id: str,
+    url: str,
+    title: str = "",
+    snippet: str = "",
+) -> dict[str, object] | None:
+    """Record where a memory's claims came from.
+
+    Cite the page you actually read, with the line you took from it as
+    `snippet` — a summary nobody can check is worth much less than the same
+    summary with its receipts. Nothing is fetched: what you saw is what is
+    stored.
+
+    Sources are numbered in the order they are cited, and the memory's Markdown
+    refers to them as `[[src:1]]`, which the canvas renders as a citation the
+    reader can hover to see the source behind it.
+
+    Returns None if the memory does not exist.
+    """
+    if await nodes_service.get_node(db.conn, node_id) is None:
+        return None
+
+    try:
+        cited = await sources_service.cite(
+            db.conn, node_id, SourceCreate(url=url, title=title, snippet=snippet)
+        )
+    except sources_service.UnusableSource:
+        return {"error": f"{url} is not an http(s) address a reader could open"}
+
+    node = await nodes_service.get_node(db.conn, node_id)
+    if node is not None:
+        await broadcast_node_updated(node)
+    return {"source": cited.model_dump(mode="json")}
+
+
+@mcp.tool
+async def uncite_source(source_id: str) -> dict[str, object]:
+    """Remove a citation from its memory."""
+    record = await sources_service.get_source(db.conn, source_id)
+    deleted = await sources_service.delete_source(db.conn, source_id)
+
+    if deleted and record is not None:
+        node = await nodes_service.get_node(db.conn, record.node_id)
+        if node is not None:
+            await broadcast_node_updated(node)
+    return {"deleted": deleted, "source_id": source_id}
+
+
+@mcp.tool
+async def detach_file(file_id: str) -> dict[str, object]:
+    """Remove an attachment from its memory, deleting the stored copy."""
+    record = await files_service.get_file(db.conn, file_id)
+    deleted = await files_service.delete_file(db.conn, file_id)
+
+    if deleted and record is not None:
+        node = await nodes_service.get_node(db.conn, record.node_id)
+        if node is not None:
+            await broadcast_node_updated(node)
+    return {"deleted": deleted, "file_id": file_id}
 
 
 @mcp.tool

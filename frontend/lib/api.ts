@@ -1,4 +1,5 @@
 import type {
+  FileRef,
   GraphSnapshot,
   NodeDetail,
   NodeSearchResult,
@@ -57,6 +58,48 @@ export function saveLayout(
 
 export function clearLayout(mode: string): Promise<Response> {
   return fetch(`${API_URL}/layout/${mode}`, { method: "DELETE" });
+}
+
+/** Absolute address of an attachment, for an <img> or a link. */
+export function fileUrl(file: Pick<FileRef, "url">): string {
+  return `${API_URL}${file.url}`;
+}
+
+/**
+ * Attach a file to a memory.
+ *
+ * multipart rather than a JSON body: the bytes go up as bytes, instead of
+ * being base64'd into a string a third larger than the file itself. The
+ * daemon broadcasts the change, so every open canvas picks the attachment up
+ * without this having to tell anyone.
+ */
+export async function attachFile(
+  nodeId: string,
+  file: File,
+): Promise<FileRef> {
+  const body = new FormData();
+  body.append("upload", file, file.name);
+
+  const response = await fetch(
+    `${API_URL}/nodes/${encodeURIComponent(nodeId)}/files`,
+    { method: "POST", body },
+  );
+  if (!response.ok) {
+    throw new Error(
+      response.status === 413
+        ? `${file.name} is too large for this daemon`
+        : `Could not attach ${file.name}`,
+    );
+  }
+  return response.json() as Promise<FileRef>;
+}
+
+export async function detachFile(fileId: string): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/files/${encodeURIComponent(fileId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) throw new Error("Could not remove the attachment");
 }
 
 export function searchNodes(

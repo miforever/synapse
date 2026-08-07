@@ -6,7 +6,11 @@ import aiosqlite
 
 from app.core.identifiers import new_id, utcnow_iso
 from app.core.queries import fetch_all, fetch_one, row_to_dict
+from app.models.files import FileOut
 from app.models.nodes import NodeCreate, NodeOut, NodeSearchResult, NodeUpdate
+from app.models.sources import SourceOut
+from app.services import files as files_service
+from app.services import sources as sources_service
 from app.services import tags as tags_service
 from app.services import types as types_service
 from app.services import vectors
@@ -59,10 +63,17 @@ async def _reindex_vector(conn: aiosqlite.Connection, node: NodeOut) -> None:
         logger.warning("Failed to embed node %s", node.id, exc_info=True)
 
 
-def _to_node(row: aiosqlite.Row, tags: list[str]) -> NodeOut:
+def _to_node(
+    row: aiosqlite.Row,
+    tags: list[str],
+    attachments: list[FileOut],
+    citations: list[SourceOut],
+) -> NodeOut:
     data = row_to_dict(row)
     data["metadata"] = json.loads(data["metadata"])
     data["tags"] = tags
+    data["files"] = attachments
+    data["sources"] = citations
     return NodeOut.model_validate(data)
 
 
@@ -98,7 +109,12 @@ async def get_node(conn: aiosqlite.Connection, node_id: str) -> NodeOut | None:
     row = await fetch_one(conn, _BY_ID, (node_id,))
     if row is None:
         return None
-    return _to_node(row, await tags_service.get_tags(conn, node_id))
+    return _to_node(
+        row,
+        await tags_service.get_tags(conn, node_id),
+        await files_service.list_for_node(conn, node_id),
+        await sources_service.list_for_node(conn, node_id),
+    )
 
 
 async def update_node(
@@ -139,9 +155,12 @@ async def delete_node(conn: aiosqlite.Connection, node_id: str) -> bool:
     """Remove a node. Its edges and tag links cascade away with it.
 
     The vector table is virtual, so foreign keys do not reach it — its row has
-    to be removed explicitly or the index accumulates orphans.
+    to be removed explicitly or the index accumulates orphans. Attached bytes
+    need the same treatment for the same reason.
     """
     await vectors.delete(conn, node_id)
+    # Before the rows go: the file table cascades, the disk does not.
+    await files_service.purge_for_node(conn, node_id)
     cursor = await conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
     await conn.commit()
     return cursor.rowcount > 0

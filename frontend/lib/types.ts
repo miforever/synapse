@@ -24,10 +24,39 @@ export interface GraphSnapshot {
   edges: GraphEdge[];
 }
 
+/** A file attached to a memory. Mirrors app/models/files.py. */
+export interface FileRef {
+  id: string;
+  node_id: string;
+  name: string;
+  media_type: string;
+  /** Bytes. */
+  size: number;
+  /** Path on the daemon, relative — join with API_URL to fetch it. */
+  url: string;
+  created_at: string;
+}
+
+/** Where a memory's claims came from. Mirrors app/models/sources.py. */
+export interface SourceRef {
+  id: string;
+  node_id: string;
+  url: string;
+  title: string;
+  /** Host, without the www — how a reader would name the site. */
+  site: string;
+  snippet: string;
+  /** 1-based citation number, which `[[src:N]]` in the content refers to. */
+  position: number;
+  created_at: string;
+}
+
 /** The full record, fetched only when a node is opened. */
 export interface NodeDetail extends GraphNode {
   content: string;
   metadata: Record<string, unknown>;
+  files: FileRef[];
+  sources: SourceRef[];
   created_at: string;
   updated_at: string;
 }

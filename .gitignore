@@ -11,6 +11,12 @@ __pycache__/
 *.db
 *.db-wal
 *.db-shm
+
+# Attached files live beside the database and are just as much user data.
+synapse_files/
+
+# The daemon's own settings. config.example.json is the one that ships.
+config.json
 data/
 
 # Node

@@ -1,15 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import {
+  citedSource,
+  FILE_SCHEME,
+  mentionedFile,
+  resolveReferences,
+  SOURCE_SCHEME,
+} from "@/lib/file-mentions";
 import { isExternal, mediaKind } from "@/lib/media";
-import type { MediaSettings } from "@/lib/types";
+import type { FileRef, MediaSettings, SourceRef } from "@/lib/types";
+import { FileChip } from "./FileChip";
+import { SourceChip } from "./SourceChip";
 
 interface Props {
   content: string;
   media: MediaSettings;
+  /** The memory's attachments, so `[[file:NAME]]` can be resolved inline. */
+  files?: readonly FileRef[];
+  /** Its citations, so `[[src:N]]` can be too. */
+  sources?: readonly SourceRef[];
 }
 
 /** Shown in place of media the user has not enabled. */
@@ -71,24 +84,54 @@ function Deferred({
  * without link syntax. Raw HTML is never enabled — this content is written by
  * agents, and react-markdown escaping it is what keeps that safe.
  */
-export function MemoryContent({ content, media }: Props) {
+export function MemoryContent({
+  content,
+  media,
+  files = [],
+  sources = [],
+}: Props) {
   const allowSource = (src: string) => media.remote_sources || !isExternal(src);
 
   return (
     <div className="prose-synapse text-sm leading-relaxed text-slate-300">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        /*
+         * Let our own scheme through.
+         *
+         * react-markdown blanks any href outside http/https/mailto/tel, which
+         * is what keeps `javascript:` out of agent-authored content — and it
+         * took the resolved file links with it, so every mention arrived at
+         * the renderer below with nothing to identify it. Everything else
+         * still goes through the default check.
+         */
+        urlTransform={(url) =>
+          url.startsWith(FILE_SCHEME) || url.startsWith(SOURCE_SCHEME)
+            ? url
+            : defaultUrlTransform(url)
+        }
         components={{
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan-300 underline decoration-cyan-300/30 underline-offset-2 hover:decoration-cyan-300"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            // A mention of one of this memory's own attachments renders as
+            // something to open rather than as a link to a scheme no browser
+            // knows what to do with.
+            const attached = mentionedFile(href, files);
+            if (attached) return <FileChip file={attached} />;
+
+            const cited = citedSource(href, sources);
+            if (cited) return <SourceChip source={cited} />;
+
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-300 underline decoration-cyan-300/30 underline-offset-2 hover:decoration-cyan-300"
+              >
+                {children}
+              </a>
+            );
+          },
 
           // Markdown has no audio/video syntax, so ![](clip.mp3) arrives here
           // too. Route each URL to the right player instead of a broken image.
@@ -152,7 +195,7 @@ export function MemoryContent({ content, media }: Props) {
           },
         }}
       >
-        {content}
+        {resolveReferences(content, files, sources)}
       </ReactMarkdown>
     </div>
   );

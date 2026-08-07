@@ -58,6 +58,44 @@ CREATE TABLE IF NOT EXISTS layouts (
     updated_at TEXT NOT NULL DEFAULT {_NOW}
 );
 
+-- Files attached to a memory.
+--
+-- The daemon keeps its own copy of the bytes rather than pointing at wherever
+-- the file came from: a memory that breaks when someone tidies their Downloads
+-- folder is not a memory. `stored_name` is what it is called inside the store,
+-- always derived from the id, so nothing a caller supplies ever reaches a path.
+-- `name` is the original, and only ever displayed.
+CREATE TABLE IF NOT EXISTS files (
+    id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    stored_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT {_NOW}
+);
+
+-- Where a memory's claims came from.
+--
+-- Separate from `files`, which are things the memory *has*; a source is
+-- something it *cites*. The distinction matters at the point of reading: an
+-- attachment is opened, a source is checked, and a reader deciding whether to
+-- believe a line wants the second without wading through the first.
+--
+-- `position` fixes the citation numbers. Content refers to sources as
+-- [[src:1]], so their order has to be a stored property rather than whatever
+-- the rows happen to come back in, or editing one renumbers the prose.
+CREATE TABLE IF NOT EXISTS sources (
+    id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    site TEXT NOT NULL DEFAULT '',
+    snippet TEXT NOT NULL DEFAULT '',
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT {_NOW}
+);
+
 CREATE TABLE IF NOT EXISTS node_tags (
     node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
     tag TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE,
@@ -70,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_node_tags_tag ON node_tags(tag);
 CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type);
 CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
+CREATE INDEX IF NOT EXISTS idx_files_node ON files(node_id);
 """
 
 # Mirrors node text into an FTS5 index so search_index stays sub-millisecond.

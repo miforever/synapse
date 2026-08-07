@@ -1,0 +1,102 @@
+"use client";
+
+import { fileUrl } from "@/lib/api";
+import type { FileRef } from "@/lib/types";
+import { formatSize, isImage, kindOf } from "./FileChip";
+
+interface Props {
+  files: readonly FileRef[];
+  /** An upload in flight, so the section can say so rather than sit still. */
+  busy: boolean;
+  error: string | null;
+  onRemove: (file: FileRef) => void;
+}
+
+/**
+ * Everything attached to the open memory.
+ *
+ * Shown even when empty, because it is also the instruction: a memory with no
+ * attachments is where you most need to be told that dropping one here is
+ * possible at all.
+ */
+export function FileList({ files, busy, error, onRemove }: Props) {
+  return (
+    <section className="mt-5 border-t border-white/10 pt-5">
+      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
+        Files
+        {files.length > 0 && (
+          <span className="ml-2 rounded-full bg-white/10 px-1.5 py-0.5 text-slate-300">
+            {files.length}
+          </span>
+        )}
+      </p>
+
+      {files.length === 0 && !busy && (
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+          Drop a file anywhere on this panel to attach it, or have an agent
+          call <code className="font-mono text-slate-400">attach_file</code>.
+        </p>
+      )}
+
+      {error && (
+        <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{error}</p>
+      )}
+
+      {busy && (
+        <p className="mt-2 font-mono text-[11px] text-slate-500">attaching…</p>
+      )}
+
+      <ul className="mt-2 space-y-1">
+        {files.map((file) => (
+          <li
+            key={file.id}
+            className="group flex items-center gap-2.5 rounded-lg border border-white/5 bg-white/5 p-2"
+          >
+            {isImage(file) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={fileUrl(file)}
+                alt=""
+                loading="lazy"
+                className="h-9 w-9 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-black/30 font-mono text-[9px] uppercase text-slate-400">
+                {kindOf(file).slice(0, 4)}
+              </span>
+            )}
+
+            <a
+              href={fileUrl(file)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1"
+            >
+              <span className="block truncate text-xs text-slate-200 hover:text-white">
+                {file.name}
+              </span>
+              <span className="block font-mono text-[10px] text-slate-500">
+                {kindOf(file)} · {formatSize(file.size)}
+              </span>
+            </a>
+
+            {/*
+              Only on hover: a delete control sitting permanently beside every
+              attachment invites the accident it is easiest to regret, since
+              the bytes are gone with the row.
+            */}
+            <button
+              type="button"
+              onClick={() => onRemove(file)}
+              aria-label={`Remove ${file.name}`}
+              title="Remove attachment"
+              className="shrink-0 rounded px-1.5 py-1 font-mono text-[11px] text-slate-600 opacity-0 transition hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover:opacity-100"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

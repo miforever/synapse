@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.models.base import TimestampedModel
 from app.models.fields import NodeType, Summary, TagName, Title
+from app.models.files import FileOut
+from app.models.sources import SourceOut
 
 
 class NodeCreate(BaseModel):
@@ -32,7 +34,7 @@ class NodeUpdate(BaseModel):
     tags: list[TagName] | None = None
 
 
-class NodeOut(BaseModel):
+class NodeOut(TimestampedModel):
     id: str
     type: str
     title: str
@@ -41,8 +43,12 @@ class NodeOut(BaseModel):
     thumbnail_url: str | None
     metadata: dict[str, Any]
     tags: list[str]
-    created_at: datetime
-    updated_at: datetime
+    # Carried with the memory rather than fetched separately: the drawer needs
+    # them the moment it opens, and content can reference them inline.
+    files: list[FileOut] = Field(default_factory=list)
+    # What the memory cites. Ordered, because the text refers to them by
+    # number.
+    sources: list[SourceOut] = Field(default_factory=list)
 
 
 class NodeSearchResult(BaseModel):
